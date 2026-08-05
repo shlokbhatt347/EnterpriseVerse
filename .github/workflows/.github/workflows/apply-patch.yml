@@ -1,0 +1,76 @@
+name: apply-patch
+
+on:
+  workflow_dispatch:
+    inputs:
+      patch_url:
+        description: 'Raw URL to mbox patch (optional if baked into default)'
+        required: false
+        default: 'https://gist.githubusercontent.com/shlokbhatt347/9c912d0200bee30c4f3e1305093db493/raw'
+      branch:
+        description: 'Branch to create'
+        required: false
+        default: 'setup/monorepo-foundation-v2'
+
+permissions:
+  contents: write
+
+jobs:
+  apply-patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Install git
+        run: sudo apt-get update && sudo apt-get install -y git
+
+      - name: Get patch URL
+        id: get_patch
+        run: |
+          PATCH_URL="${{ github.event.inputs.patch_url }}"
+          if [ -z "$PATCH_URL" ] || [ "$PATCH_URL" = "https://gist.githubusercontent.com/shlokbhatt347/9c912d0200bee30c4f3e1305093db493/raw" ]; then
+            # default is set; use it
+            echo "Using built-in patch_url"
+            echo "patch_url=https://gist.githubusercontent.com/shlokbhatt347/9c912d0200bee30c4f3e1305093db493/raw" >> $GITHUB_OUTPUT
+          else
+            echo "patch_url=$PATCH_URL" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download patch
+        run: |
+          PATCH_URL="${{ steps.get_patch.outputs.patch_url }}"
+          echo "Downloading patch from $PATCH_URL"
+          curl -fsSL "$PATCH_URL" -o /tmp/patch.mbox
+          echo "Patch saved to /tmp/patch.mbox, size: $(wc -c /tmp/patch.mbox | awk '{print $1}') bytes"
+
+      - name: Create branch
+        run: |
+          BRANCH="${{ github.event.inputs.branch }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+
+      - name: Apply mbox patch with git am (fallback to git apply)
+        run: |
+          set -e
+          if git am /tmp/patch.mbox; then
+            echo "git am applied patch"
+          else
+            echo "git am failed, attempting git apply + commit"
+            git am --abort || true
+            git apply --index /tmp/patch.mbox || (echo "git apply failed" && exit 1)
+            git commit -m "chore(monorepo): apply patch via workflow"
+          fi
+          git status --porcelain
+          git rev-parse --abbrev-ref HEAD
+
+      - name: Push branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH="${{ github.event.inputs.branch }}"
+          git push -u origin HEAD:"$BRANCH"
