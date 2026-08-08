@@ -39,7 +39,7 @@ function generateEvent(day: number, business: Business): SimulationEvent {
       message: "A local trend is driving extra demand. You can capitalize on it or protect your cash.",
       choices: [
         choice("stock", "Buy extra inventory", { cash: -1_200, revenue: 2_400, reputation: 1 }),
-        choice("normal", "Keep operations unchanged", { revenue: 800, reputation: 0 }),
+        choice("normal", "Keep operations unchanged", { revenue: 800 }),
         choice("premium", "Raise prices and test demand", { revenue: 1_400, reputation: -1 }),
       ],
     };
@@ -61,7 +61,7 @@ function generateEvent(day: number, business: Business): SimulationEvent {
     id: `event-${day}`,
     day,
     title: "Investor introduction",
-    message: `${business.name} has attracted attention. An investor wants a short meeting tomorrow. Prepare your case.",
+    message: `${business.name} has attracted attention. An investor wants a short meeting tomorrow. Prepare your case.`,
     choices: [
       choice("pitch", "Prepare a growth pitch", { reputation: 2 }),
       choice("decline", "Focus on customers instead", { revenue: 600, reputation: 1 }),
