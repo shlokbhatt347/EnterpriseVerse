@@ -6,6 +6,25 @@ export interface Founder {
   name: string;
   cash: number;
   reputation: number;
+  role?: "founder" | "ceo" | "marketing" | "finance" | "operations";
+}
+
+export interface Customer {
+  id: string;
+  name: string;
+  segment: "budget" | "standard" | "premium";
+  trust: number;
+  lifetimeValue: number;
+  lastPurchaseDay?: number;
+}
+
+export interface Supplier {
+  id: string;
+  name: string;
+  reliability: number;
+  unitCost: number;
+  relationship: number;
+  availableUnits: number;
 }
 
 export interface Business {
@@ -19,6 +38,10 @@ export interface Business {
   reputation: number;
   day: number;
   status: BusinessStatus;
+  inventory: number;
+  customers: Customer[];
+  suppliers: Supplier[];
+  marketShare: number;
 }
 
 export interface SimulationEvent {
