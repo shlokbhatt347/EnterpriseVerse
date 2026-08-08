@@ -1,7 +1,7 @@
 export type BusinessStructure = "sole_trader" | "partnership" | "trio" | "team";
 export type BusinessStatus = "planning" | "active" | "paused" | "failed";
 export type CustomerSegment = "budget" | "standard" | "premium";
-export type CharacterMood = "happy" | "neutral" | "concerned" | "angry" | "excited";
+export type CharacterMood = "happy" | "neutral" | "concerned" | "angry" | "excited" | "competitive" | "confident";
 export type RiskTolerance = "low" | "medium" | "high";
 
 export interface Founder {
