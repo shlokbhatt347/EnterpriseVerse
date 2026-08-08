@@ -8,6 +8,7 @@ import type {
   Supplier,
 } from "@enterpriseverse/types";
 import { defaultOperations } from "./operations";
+import { advanceMarket, createMarketState, explainMarketPosition } from "./market";
 
 export {
   createCustomerAgents,
@@ -20,6 +21,7 @@ export {
   evaluateInvestment,
 } from "./agents";
 export { applyBusinessAction, calculateKpis, defaultOperations } from "./operations";
+export { advanceMarket, createMarketState, explainMarketPosition } from "./market";
 export type { BusinessAction } from "./operations";
 
 const STARTING_CASH: Record<BusinessStructure, number> = {
@@ -119,18 +121,27 @@ export function createBusiness(input: { name: string; idea: string; industry: st
     marketShare: 1,
   };
 
-  return { business, operations: defaultOperations(), events: [generateEvent(1, business)], log: [`Day 1: ${business.name} opened in ${business.industry} with the idea “${business.idea}” and ₹${startingCash.toLocaleString("en-IN")} starting capital.`] };
+  return {
+    business,
+    operations: defaultOperations(),
+    market: createMarketState(),
+    events: [generateEvent(1, business)],
+    log: [`Day 1: ${business.name} opened in ${business.industry} with the idea “${business.idea}” and ₹${startingCash.toLocaleString("en-IN")} starting capital.`],
+  };
 }
 
 export function advanceDay(state: SimulationState): SimulationState {
   const { business } = state;
   const operations = state.operations ?? defaultOperations();
+  const previousMarket = state.market ?? createMarketState();
+  const market = advanceMarket(business.day + 1, business, operations, previousMarket);
   const fixedExpense = STRUCTURE_EXPENSE[business.structure] + operations.employees * 150;
   const baseDemand = 7 + ((business.day * 13) % 14);
   const priceEffect = Math.max(0.35, Math.min(1.8, 120 / Math.max(20, operations.price)));
   const awarenessEffect = 1 + operations.brandAwareness / 250;
   const reputationEffect = 0.8 + business.reputation / 250;
-  const demand = Math.max(1, Math.round(baseDemand * priceEffect * awarenessEffect * reputationEffect));
+  const marketEffect = market.demandIndex / 100;
+  const demand = Math.max(1, Math.round(baseDemand * priceEffect * awarenessEffect * reputationEffect * marketEffect));
   const unitsSold = Math.min(business.inventory, operations.productionCapacity, demand);
   const revenue = unitsSold * operations.price;
   const nextInventory = business.inventory - unitsSold;
@@ -158,8 +169,9 @@ export function advanceDay(state: SimulationState): SimulationState {
   return {
     business: nextBusiness,
     operations: nextOperations,
+    market,
     events: [generateEvent(nextBusiness.day, nextBusiness)],
-    log: [...state.log, `Day ${nextBusiness.day}: sold ${unitsSold}/${demand} units at ₹${operations.price}; revenue ₹${revenue.toLocaleString("en-IN")}; operating costs ₹${fixedExpense.toLocaleString("en-IN")}.`],
+    log: [...state.log, `Day ${nextBusiness.day}: sold ${unitsSold}/${demand} units at ₹${operations.price}; revenue ₹${revenue.toLocaleString("en-IN")}; operating costs ₹${fixedExpense.toLocaleString("en-IN")}; market ${market.trend}, demand index ${market.demandIndex}. ${explainMarketPosition(operations, market)}`],
   };
 }
 
