@@ -7,14 +7,31 @@ on:
     branches: [main, develop]
 
 jobs:
-  repository-check:
+  quality:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Check repository structure
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Run simulation tests
+        run: pnpm test:simulation
+      - name: Typecheck simulation package
+        run: pnpm exec tsc --noEmit -p packages/simulation/tsconfig.json
+      - name: Build web app
+        run: pnpm --dir apps/web build
+      - name: Verify required project files
         run: |
           test -f README.md
           test -f docs/01_PRD.md
           test -f packages/simulation/src/index.ts
-          test -f apps/web/src/app/page.tsx
+          test -f apps/web/app/page.tsx
           test -f apps/api/app/main.py
