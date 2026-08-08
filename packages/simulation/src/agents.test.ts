@@ -14,6 +14,8 @@ import {
 const business: Business = {
   id: "business-test",
   name: "TestCo",
+  idea: "A practical test business",
+  industry: "Technology",
   structure: "sole_trader",
   founders: [{ id: "founder-1", name: "Test Founder", cash: 20_000, reputation: 50 }],
   cash: 30_000,
