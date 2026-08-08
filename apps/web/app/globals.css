@@ -1,0 +1,30 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body { background: #070b14; color: #eef2ff; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+button, input { font: inherit; }
+button { cursor: pointer; }
+.shell { min-height: 100vh; background: radial-gradient(circle at 80% 0%, #18234a 0, transparent 32%), #070b14; }
+.topbar { display:flex; justify-content:space-between; align-items:center; padding:20px 28px; border-bottom:1px solid #1d2638; background:#0b1020cc; backdrop-filter:blur(12px); position:sticky; top:0; z-index:10; }
+.brand { font-weight:800; letter-spacing:-.03em; font-size:20px; }
+.day { color:#aab5cc; font-size:14px; }
+.content { max-width:1180px; margin:0 auto; padding:32px 24px 60px; }
+.hero { display:flex; justify-content:space-between; gap:24px; align-items:end; margin-bottom:24px; }
+.eyebrow { color:#7dd3fc; text-transform:uppercase; letter-spacing:.14em; font-size:11px; font-weight:800; }
+h1 { margin:7px 0 8px; font-size:clamp(32px,5vw,54px); line-height:1; letter-spacing:-.05em; }
+.muted { color:#93a0b8; }
+.stats { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin:20px 0; }
+.card { border:1px solid #202b40; background:#0e1524; border-radius:16px; padding:18px; box-shadow:0 12px 35px #0003; }
+.stat-label { color:#8490a8; font-size:12px; margin-bottom:8px; }
+.stat-value { font-size:24px; font-weight:800; }
+.grid { display:grid; grid-template-columns:1.5fr 1fr; gap:18px; }
+.event-title { font-size:24px; font-weight:800; margin:4px 0 8px; }
+.options { display:grid; gap:10px; margin-top:18px; }
+.option { text-align:left; padding:15px; border:1px solid #27344c; border-radius:12px; background:#111a2c; color:#eef2ff; transition:.15s ease; }
+.option:hover { transform:translateY(-1px); border-color:#5b8cff; background:#16223a; }
+.option strong { display:block; margin-bottom:4px; }
+.option span { color:#9aa8c0; font-size:13px; }
+.primary { border:0; border-radius:10px; padding:11px 16px; background:#eef2ff; color:#0a0f1c; font-weight:800; }
+.primary:disabled { opacity:.45; cursor:not-allowed; }
+.log { max-height:340px; overflow:auto; display:grid; gap:9px; }
+.log-item { color:#aab5cc; font-size:13px; padding-bottom:9px; border-bottom:1px solid #1b2536; }
+@media(max-width:850px){ .stats{grid-template-columns:repeat(2,1fr)} .grid{grid-template-columns:1fr} .hero{display:block} }
