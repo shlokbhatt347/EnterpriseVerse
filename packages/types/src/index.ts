@@ -49,6 +49,18 @@ export interface Business {
   marketShare: number;
 }
 
+export interface OperationsState {
+  price: number;
+  quality: number;
+  marketingBudget: number;
+  productionCapacity: number;
+  employees: number;
+  supplierUnitCost: number;
+  brandAwareness: number;
+  customerSatisfaction: number;
+  debt: number;
+}
+
 export interface SimulationEvent {
   id: string;
   day: number;
@@ -65,6 +77,7 @@ export interface SimulationChoice {
 
 export interface SimulationState {
   business: Business;
+  operations?: OperationsState;
   events: SimulationEvent[];
   log: string[];
 }
