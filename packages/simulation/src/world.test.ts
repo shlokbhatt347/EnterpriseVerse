@@ -18,10 +18,10 @@ describe("persistent world engine", () => {
 
   it("creates a weekly event on day seven", () => {
     let state = createWorldState();
-    for (let i = 0; i < 6; i += 1) state = advanceWorld(state, 1).state;
+    for (let i = 0; i < 5; i += 1) state = advanceWorld(state, 1).state;
 
     const result = advanceWorld(state, 1);
-    expect(result.state.date.day).toBe(8);
+    expect(result.state.date.day).toBe(7);
     expect(result.generatedEvents).toHaveLength(1);
   });
 });
