@@ -7,6 +7,7 @@ import type {
   SimulationState,
   Supplier,
 } from "@enterpriseverse/types";
+import { defaultOperations } from "./operations";
 
 export {
   createCustomerAgents,
@@ -18,6 +19,8 @@ export {
   decideCompetitorMove,
   evaluateInvestment,
 } from "./agents";
+export { applyBusinessAction, calculateKpis, defaultOperations } from "./operations";
+export type { BusinessAction } from "./operations";
 
 const STARTING_CASH: Record<BusinessStructure, number> = {
   sole_trader: 20_000,
@@ -116,20 +119,31 @@ export function createBusiness(input: { name: string; idea: string; industry: st
     marketShare: 1,
   };
 
-  return { business, events: [generateEvent(1, business)], log: [`Day 1: ${business.name} opened in ${business.industry} with the idea “${business.idea}” and ₹${startingCash.toLocaleString("en-IN")} starting capital.`] };
+  return { business, operations: defaultOperations(), events: [generateEvent(1, business)], log: [`Day 1: ${business.name} opened in ${business.industry} with the idea “${business.idea}” and ₹${startingCash.toLocaleString("en-IN")} starting capital.`] };
 }
 
 export function advanceDay(state: SimulationState): SimulationState {
   const { business } = state;
-  const fixedExpense = STRUCTURE_EXPENSE[business.structure];
+  const operations = state.operations ?? defaultOperations();
+  const fixedExpense = STRUCTURE_EXPENSE[business.structure] + operations.employees * 150;
   const baseDemand = 7 + ((business.day * 13) % 14);
-  const unitsSold = Math.min(business.inventory, baseDemand);
-  const pricePerUnit = 120;
-  const revenue = unitsSold * pricePerUnit;
+  const priceEffect = Math.max(0.35, Math.min(1.8, 120 / Math.max(20, operations.price)));
+  const awarenessEffect = 1 + operations.brandAwareness / 250;
+  const reputationEffect = 0.8 + business.reputation / 250;
+  const demand = Math.max(1, Math.round(baseDemand * priceEffect * awarenessEffect * reputationEffect));
+  const unitsSold = Math.min(business.inventory, operations.productionCapacity, demand);
+  const revenue = unitsSold * operations.price;
   const nextInventory = business.inventory - unitsSold;
+  const fulfilled = unitsSold >= demand;
   const nextCustomers = business.customers.map((customer, index) => index < Math.min(unitsSold, business.customers.length)
-    ? { ...customer, lastPurchaseDay: business.day + 1, lifetimeValue: customer.lifetimeValue + pricePerUnit }
+    ? { ...customer, lastPurchaseDay: business.day + 1, lifetimeValue: customer.lifetimeValue + operations.price }
     : customer);
+  const satisfactionChange = fulfilled ? 1 : -2;
+  const nextOperations = {
+    ...operations,
+    customerSatisfaction: clamp(operations.customerSatisfaction + satisfactionChange + (operations.quality - 50) / 100),
+    marketingBudget: 0,
+  };
   const nextBusiness: Business = {
     ...business,
     day: business.day + 1,
@@ -138,10 +152,15 @@ export function advanceDay(state: SimulationState): SimulationState {
     cash: business.cash + revenue - fixedExpense,
     inventory: nextInventory,
     customers: nextCustomers,
-    reputation: clamp(business.reputation + (unitsSold >= baseDemand ? 1 : -1)),
-    marketShare: clamp(business.marketShare + (unitsSold >= baseDemand ? 0.2 : -0.1)),
+    reputation: clamp(business.reputation + (fulfilled ? 1 : -1)),
+    marketShare: clamp(business.marketShare + (fulfilled ? 0.2 : -0.1)),
   };
-  return { business: nextBusiness, events: [generateEvent(nextBusiness.day, nextBusiness)], log: [...state.log, `Day ${nextBusiness.day}: sold ${unitsSold} units for ₹${revenue.toLocaleString("en-IN")}; operating costs were ₹${fixedExpense.toLocaleString("en-IN")}.`] };
+  return {
+    business: nextBusiness,
+    operations: nextOperations,
+    events: [generateEvent(nextBusiness.day, nextBusiness)],
+    log: [...state.log, `Day ${nextBusiness.day}: sold ${unitsSold}/${demand} units at ₹${operations.price}; revenue ₹${revenue.toLocaleString("en-IN")}; operating costs ₹${fixedExpense.toLocaleString("en-IN")}.`],
+  };
 }
 
 export function applyChoice(state: SimulationState, selected: SimulationChoice): SimulationState {
@@ -171,5 +190,5 @@ export function applyChoice(state: SimulationState, selected: SimulationChoice):
     suppliers,
     marketShare: clamp(business.marketShare + (effects.marketShare ?? 0)),
   };
-  return { business: nextBusiness, events: [], log: [...state.log, `Day ${business.day}: chose “${selected.label}”.`] };
+  return { ...state, business: nextBusiness, events: [], log: [...state.log, `Day ${business.day}: chose “${selected.label}”.`] };
 }
