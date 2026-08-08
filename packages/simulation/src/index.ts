@@ -20,6 +20,8 @@ export {
 } from "./agents";
 export { resolveMarketDay, restockProduct } from "./livingWorld";
 export type { Product, MarketSnapshot, LivingWorldResult } from "./livingWorld";
+export { resolveOperationsDay } from "./enterpriseOps";
+export type { Employee, OperatingPlan, FinancialSnapshot, OperationsResult } from "./enterpriseOps";
 
 const STARTING_CASH: Record<BusinessStructure, number> = { sole_trader: 20_000, partnership: 35_000, trio: 50_000, team: 75_000 };
 const STRUCTURE_EXPENSE: Record<BusinessStructure, number> = { sole_trader: 450, partnership: 700, trio: 1_050, team: 1_500 };
