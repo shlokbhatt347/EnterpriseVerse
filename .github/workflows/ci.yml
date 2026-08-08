@@ -6,12 +6,64 @@ on:
   pull_request:
     branches: [main, develop]
 
+permissions:
+  contents: read
+
 jobs:
-  repository-check:
+  web-and-simulation:
+    name: Web + simulation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Run simulation tests
+        run: pnpm test:simulation
+
+      - name: Build web app
+        run: pnpm --dir apps/web build
+
+  api:
+    name: API checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: apps/api/requirements.txt
+
+      - name: Install API dependencies
+        run: python -m pip install -r apps/api/requirements.txt
+
+      - name: Compile Python sources
+        run: python -m compileall -q apps/api/app
+
+  repository-structure:
+    name: Repository structure
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Check repository structure
+      - name: Check required files
         run: |
           test -f README.md
           test -f docs/01_PRD.md
