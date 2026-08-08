@@ -1,0 +1,20 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop, 'feat/**']
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  repository-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check repository structure
+        run: |
+          test -f README.md
+          test -f docs/01_PRD.md
+          test -f packages/simulation/src/index.ts
+          test -f apps/web/src/app/page.tsx
+          test -f apps/api/app/main.py

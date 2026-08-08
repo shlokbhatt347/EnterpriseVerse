@@ -1,0 +1,10 @@
+{
+  "name": "enterpriseverse",
+  "private": true,
+  "packageManager": "pnpm@10.15.0",
+  "scripts": {
+    "dev:web": "pnpm --dir apps/web dev",
+    "dev:api": "cd apps/api && uvicorn app.main:app --reload",
+    "test:simulation": "pnpm --dir packages/simulation test"
+  }
+}
