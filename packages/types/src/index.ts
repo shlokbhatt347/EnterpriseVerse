@@ -61,6 +61,16 @@ export interface OperationsState {
   debt: number;
 }
 
+export interface MarketState {
+  demandIndex: number;
+  marketPrice: number;
+  competitorPrice: number;
+  competitorQuality: number;
+  competitorMarketShare: number;
+  trend: "growing" | "stable" | "declining";
+  confidence: number;
+}
+
 export interface SimulationEvent {
   id: string;
   day: number;
@@ -78,6 +88,7 @@ export interface SimulationChoice {
 export interface SimulationState {
   business: Business;
   operations?: OperationsState;
+  market?: MarketState;
   events: SimulationEvent[];
   log: string[];
 }
