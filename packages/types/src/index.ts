@@ -33,6 +33,8 @@ export interface Supplier {
 export interface Business {
   id: string;
   name: string;
+  idea: string;
+  industry: string;
   structure: BusinessStructure;
   founders: Founder[];
   cash: number;
