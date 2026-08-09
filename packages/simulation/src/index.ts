@@ -1,15 +1,29 @@
 import type { Business, BusinessStructure, CharacterMemory, Customer, EconomyState, Product, SimulationChoice, SimulationEvent, SimulationState, Supplier } from "@enterpriseverse/types";
 import { defaultOperations } from "./operations";
 import { advanceMarket, createMarketState, explainMarketPosition } from "./market";
-import { createCompetitorAgents, createCustomerAgents, createInvestorAgents, createSupplierAgents, decideCompetitorMove, decideCustomerPurchase, evaluateInvestment } from "./agents";
+import { createCompetitorAgents, createCustomerAgents, createInvestorAgents, createSupplierAgents, decideCompetitorMove, decideCustomerPurchase, evaluateInvestment, negotiateSupplier } from "./agents";
 import { advanceEconomyDay, createEconomyState, createProduct } from "./economy";
+import { getLifecycleStage } from "./lifecycle";
+import { createWorkforce, advanceWorkforce } from "./workforce";
+import { calculateFinancialSnapshot } from "./finance";
+import { advanceConsequences, consequenceFromChoice, createConsequenceState, scheduleConsequence } from "./consequences";
+import { advanceScenarios, createScenarioState } from "./scenarios";
+import { createReplayState, recordDecision, recordSnapshot } from "./replay";
+import { assessRun, scoreDecisionOutcome } from "./assessment";
 
 export { createCustomerAgents, createSupplierAgents, createCompetitorAgents, createInvestorAgents, decideCustomerPurchase, negotiateSupplier, decideCompetitorMove, evaluateInvestment } from "./agents";
 export { applyBusinessAction, calculateKpis, defaultOperations } from "./operations";
 export { advanceMarket, createMarketState, explainMarketPosition } from "./market";
 export { calculateIntegratedMetrics, validateIntegratedState } from "./integration";
-export { assessLearning, scoreDecisionOutcome } from "./learning";
+export { assessLearning, scoreDecisionOutcome as scoreLearningDecision } from "./learning";
 export * from "./economy";
+export * from "./lifecycle";
+export * from "./workforce";
+export * from "./finance";
+export * from "./consequences";
+export * from "./scenarios";
+export * from "./replay";
+export * from "./assessment";
 export type { BusinessAction } from "./operations";
 export type { IntegratedMetrics } from "./integration";
 export type { LearningAssessment, LearningDimension, LearningScore } from "./learning";
@@ -19,25 +33,17 @@ const STRUCTURE_EXPENSE: Record<BusinessStructure, number> = { sole_trader: 450,
 const clamp = (value: number) => Math.max(0, Math.min(100, value));
 const choice = (id: string, label: string, effects: Record<string, number>): SimulationChoice => ({ id, label, effects });
 
-function starterCustomers(): Customer[] {
-  return [
-    { id: "customer-1", name: "Aarav", segment: "standard", trust: 60, lifetimeValue: 0 },
-    { id: "customer-2", name: "Mira", segment: "premium", trust: 72, lifetimeValue: 0 },
-    { id: "customer-3", name: "Kabir", segment: "budget", trust: 52, lifetimeValue: 0 },
-  ];
-}
-
-function starterSuppliers(): Supplier[] {
-  return [
-    { id: "supplier-1", name: "Prime Supplies", reliability: 86, unitCost: 60, relationship: 60, availableUnits: 100 },
-    { id: "supplier-2", name: "Value Wholesale", reliability: 68, unitCost: 48, relationship: 45, availableUnits: 80 },
-  ];
-}
-
-function starterEconomy(): EconomyState {
-  const product = createProduct({ name: "Core Product", category: "starter", sellingPrice: 120, productionCost: 60, quality: 70, demandScore: 65, inventory: 20 });
-  return createEconomyState([product]);
-}
+function starterCustomers(): Customer[] { return [
+  { id: "customer-1", name: "Aarav", segment: "standard", trust: 60, lifetimeValue: 0 },
+  { id: "customer-2", name: "Mira", segment: "premium", trust: 72, lifetimeValue: 0 },
+  { id: "customer-3", name: "Kabir", segment: "budget", trust: 52, lifetimeValue: 0 },
+]; }
+function starterSuppliers(): Supplier[] { return [
+  { id: "supplier-1", name: "Prime Supplies", reliability: 86, unitCost: 60, relationship: 60, availableUnits: 100 },
+  { id: "supplier-2", name: "Value Wholesale", reliability: 68, unitCost: 48, relationship: 45, availableUnits: 80 },
+]; }
+function starterEconomy(): EconomyState { return createEconomyState([createProduct({ name: "Core Product", category: "starter", sellingPrice: 120, productionCost: 60, quality: 70, demandScore: 65, inventory: 20 })]); }
+function updateMemory(memories: CharacterMemory[], memory: CharacterMemory): CharacterMemory[] { return [...memories, memory].slice(-8); }
 
 function generateEvent(day: number, business: Business): SimulationEvent {
   const cycle = day % 5;
@@ -48,35 +54,13 @@ function generateEvent(day: number, business: Business): SimulationEvent {
   return { id: `event-${day}`, day, title: "Investor introduction", message: `${business.name} has attracted attention. An investor wants a short meeting. Decide whether to pursue growth capital.`, choices: [choice("pitch", "Prepare a growth pitch", { cash: 10_000, reputation: 3, marketShare: 2 }), choice("decline", "Focus on customers instead", { revenue: 600, reputation: 1 })] };
 }
 
-function updateMemory(memories: CharacterMemory[], memory: CharacterMemory): CharacterMemory[] { return [...memories, memory].slice(-8); }
-
 function runAgentRound(state: SimulationState): SimulationState {
-  const business = state.business;
-  const operations = state.operations ?? defaultOperations();
+  const business = state.business; const operations = state.operations ?? defaultOperations();
   const world = state.agents ?? { customers: createCustomerAgents(), suppliers: createSupplierAgents(), competitors: createCompetitorAgents(), investors: createInvestorAgents(), lastDecisions: [] };
-  const decisions = [] as typeof world.lastDecisions;
-  let customerSignal = 0;
-  let competitorPressure = 0;
-  const customers = world.customers.map((agent) => {
-    const decision = decideCustomerPurchase(agent, business, operations.price);
-    decisions.push(decision);
-    const purchased = decision.action === "purchase";
-    customerSignal += purchased ? 1 : -1;
-    return { ...agent, trust: clamp(agent.trust + (purchased ? 1 : -2)), relationship: clamp(agent.relationship + (purchased ? 2 : -1)), loyalty: clamp(agent.loyalty + (purchased ? 1 : -1)), mood: purchased ? "happy" as const : "concerned" as const, memories: updateMemory(agent.memories, decision.memory) };
-  });
-  const competitors = world.competitors.map((agent) => {
-    const decision = decideCompetitorMove(agent, business);
-    decisions.push(decision);
-    competitorPressure += decision.effects.competitorPressure ?? 0;
-    const aggressive = decision.action !== "observe";
-    return { ...agent, cash: Math.max(0, agent.cash - (decision.action === "discount_campaign" ? 800 : 150)), marketShare: clamp(agent.marketShare + (decision.action === "discount_campaign" ? 0.4 : 0.1)), aggression: clamp(agent.aggression + (aggressive ? 1 : -1)), memories: updateMemory(agent.memories, decision.memory) };
-  });
-  const investors = world.investors.map((agent) => {
-    const decision = evaluateInvestment(agent, business);
-    decisions.push(decision);
-    const invested = decision.action === "offer_investment";
-    return { ...agent, investmentCapacity: Math.max(0, agent.investmentCapacity - (decision.effects.cash ?? 0)), relationship: clamp(agent.relationship + (invested ? 5 : -1)), trust: clamp(agent.trust + (invested ? 2 : -1)), mood: invested ? "excited" as const : "neutral" as const, memories: updateMemory(agent.memories, decision.memory) };
-  });
+  const decisions = [] as typeof world.lastDecisions; let customerSignal = 0; let competitorPressure = 0;
+  const customers = world.customers.map((agent) => { const decision = decideCustomerPurchase(agent, business, operations.price); decisions.push(decision); const purchased = decision.action === "purchase"; customerSignal += purchased ? 1 : -1; return { ...agent, trust: clamp(agent.trust + (purchased ? 1 : -2)), relationship: clamp(agent.relationship + (purchased ? 2 : -1)), loyalty: clamp(agent.loyalty + (purchased ? 1 : -1)), mood: purchased ? "happy" as const : "concerned" as const, memories: updateMemory(agent.memories, decision.memory) }; });
+  const competitors = world.competitors.map((agent) => { const decision = decideCompetitorMove(agent, business); decisions.push(decision); competitorPressure += decision.effects.competitorPressure ?? 0; const aggressive = decision.action !== "observe"; return { ...agent, cash: Math.max(0, agent.cash - (decision.action === "discount_campaign" ? 800 : 150)), marketShare: clamp(agent.marketShare + (decision.action === "discount_campaign" ? 0.4 : 0.1)), aggression: clamp(agent.aggression + (aggressive ? 1 : -1)), memories: updateMemory(agent.memories, decision.memory) }; });
+  const investors = world.investors.map((agent) => { const decision = evaluateInvestment(agent, business); decisions.push(decision); const invested = decision.action === "offer_investment"; return { ...agent, investmentCapacity: Math.max(0, agent.investmentCapacity - (decision.effects.cash ?? 0)), relationship: clamp(agent.relationship + (invested ? 5 : -1)), trust: clamp(agent.trust + (invested ? 2 : -1)), mood: invested ? "excited" as const : "neutral" as const, memories: updateMemory(agent.memories, decision.memory) }; });
   const suppliers = world.suppliers.map((agent) => ({ ...agent, memories: agent.memories.slice(-8) }));
   const customerEffect = customerSignal / Math.max(1, customers.length);
   const nextBusiness: Business = { ...business, reputation: clamp(business.reputation + customerEffect * 0.4 - competitorPressure * 0.02), marketShare: clamp(business.marketShare + customerEffect * 0.08 - competitorPressure * 0.01) };
@@ -88,41 +72,54 @@ export function createBusiness(input: { name: string; idea: string; industry: st
   const startingCash = STARTING_CASH[input.structure];
   const founders = input.founderNames.map((name, index) => ({ id: `founder-${index + 1}`, name, cash: Math.round(startingCash / Math.max(1, input.founderNames.length)), reputation: 50, role: index === 0 ? "ceo" as const : undefined }));
   const business: Business = { id: `business-${input.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, name: input.name, idea: input.idea, industry: input.industry, structure: input.structure, founders, cash: startingCash, revenue: 0, expenses: 0, reputation: 50, day: 1, status: "active", inventory: 20, customers: starterCustomers(), suppliers: starterSuppliers(), marketShare: 1 };
-  return { business, operations: defaultOperations(), market: createMarketState(), economy: starterEconomy(), agents: { customers: createCustomerAgents(), suppliers: createSupplierAgents(), competitors: createCompetitorAgents(), investors: createInvestorAgents(), lastDecisions: [] }, events: [generateEvent(1, business)], log: [`Day 1: ${business.name} opened in ${business.industry} with the idea “${business.idea}” and ₹${startingCash.toLocaleString("en-IN")} starting capital.`] };
+  const operations = defaultOperations();
+  const workforce = createWorkforce(1);
+  const financials = calculateFinancialSnapshot(business, operations, 20 * 60, 0);
+  const replay = recordSnapshot(createReplayState(1), business, operations, createMarketState(), financials);
+  return { business, operations, market: createMarketState(), economy: starterEconomy(), agents: { customers: createCustomerAgents(), suppliers: createSupplierAgents(), competitors: createCompetitorAgents(), investors: createInvestorAgents(), lastDecisions: [] }, workforce, financials, consequences: createConsequenceState(), scenarios: createScenarioState(1), replay, outcomes: [], events: [generateEvent(1, business)], log: [`Day 1: ${business.name} opened in ${business.industry} with the idea “${business.idea}” and ₹${startingCash.toLocaleString("en-IN")} starting capital.`] };
 }
 
 export function advanceDay(state: SimulationState): SimulationState {
-  const { business } = state;
-  const operations = state.operations ?? defaultOperations();
-  const previousMarket = state.market ?? createMarketState();
+  const { business } = state; const operations = state.operations ?? defaultOperations(); const previousMarket = state.market ?? createMarketState();
   const market = advanceMarket(business.day + 1, business, operations, previousMarket);
+  const scenarioResult = advanceScenarios(state.scenarios ?? createScenarioState(1), business);
+  const consequenceResult = advanceConsequences(state.consequences ?? createConsequenceState(), business.day + 1);
   const fixedExpense = STRUCTURE_EXPENSE[business.structure] + operations.employees * 150;
   const economyBefore = state.economy ?? starterEconomy();
   const synchronizedProducts: Product[] = economyBefore.products.map((product, index) => index === 0 ? { ...product, sellingPrice: operations.price, quality: operations.quality, inventory: business.inventory, demandScore: clamp(product.demandScore + operations.brandAwareness / 20) } : product);
-  const economyInput: EconomyState = { ...economyBefore, products: synchronizedProducts };
-  const economyResult = advanceEconomyDay(economyInput, business.day + 1, market.demandIndex, market.competitorPrice, business.suppliers);
+  const economyResult = advanceEconomyDay({ ...economyBefore, products: synchronizedProducts }, business.day + 1, market.demandIndex, market.competitorPrice, business.suppliers);
   const productInventory = economyResult.economy.products.reduce((total, product) => total + product.inventory, 0);
-  const revenue = economyResult.revenue;
-  const unitsSold = economyResult.unitsSold;
-  const demandFulfilled = unitsSold > 0;
+  const revenue = economyResult.revenue; const unitsSold = economyResult.unitsSold; const demandFulfilled = unitsSold > 0;
   const nextCustomers = business.customers.map((customer, index) => index < Math.min(unitsSold, business.customers.length) ? { ...customer, lastPurchaseDay: business.day + 1, lifetimeValue: customer.lifetimeValue + operations.price } : customer);
   const nextOperations = { ...operations, customerSatisfaction: clamp(operations.customerSatisfaction + (demandFulfilled ? 1 : -1) + (operations.quality - 50) / 100), marketingBudget: 0 };
   const nextBusiness: Business = { ...business, day: business.day + 1, revenue: business.revenue + revenue, expenses: business.expenses + fixedExpense + economyResult.procurementSpend, cash: business.cash + revenue - fixedExpense - economyResult.procurementSpend, inventory: productInventory, customers: nextCustomers, reputation: clamp(business.reputation + (demandFulfilled ? 1 : -1)), marketShare: clamp(business.marketShare + (demandFulfilled ? 0.2 : -0.1)) };
+  const nextWorkforce = advanceWorkforce(state.workforce ?? createWorkforce(business.day), nextOperations, nextBusiness);
+  const financials = calculateFinancialSnapshot(nextBusiness, nextOperations, productInventory * 60, nextWorkforce.payroll);
   const supplyChain = economyResult.economy.supplyChain;
-  const advanced: SimulationState = { business: nextBusiness, operations: nextOperations, market, economy: economyResult.economy, agents: state.agents, events: [generateEvent(nextBusiness.day, nextBusiness)], log: [...state.log, `Day ${nextBusiness.day}: sold ${unitsSold} units for ₹${revenue.toLocaleString("en-IN")}; produced ${economyResult.unitsProduced}; delivered ${economyResult.unitsDelivered}; procurement ₹${economyResult.procurementSpend.toLocaleString("en-IN")}; supply-chain risk ${economyResult.supplyChainRisk}/100; inventory ${productInventory}; raw materials ${supplyChain?.rawMaterialInventory ?? 0}; ${explainMarketPosition(operations, market)}`] };
+  const advanced: SimulationState = { business: nextBusiness, operations: nextOperations, market, economy: economyResult.economy, agents: state.agents, workforce: nextWorkforce, financials, consequences: consequenceResult.state, scenarios: scenarioResult.state, replay: state.replay, outcomes: state.outcomes ?? [], events: [generateEvent(nextBusiness.day, nextBusiness)], log: [...state.log, `Day ${nextBusiness.day}: sold ${unitsSold} units for ₹${revenue.toLocaleString("en-IN")}; produced ${economyResult.unitsProduced}; delivered ${economyResult.unitsDelivered}; procurement ₹${economyResult.procurementSpend.toLocaleString("en-IN")}; supply-chain risk ${economyResult.supplyChainRisk}/100; inventory ${productInventory}; raw materials ${supplyChain?.rawMaterialInventory ?? 0}; ${explainMarketPosition(nextOperations, market)}`] };
   const reacted = runAgentRound(advanced);
+  const replay = recordSnapshot(state.replay ?? createReplayState(1), reacted.business, reacted.operations, reacted.market, financials);
   const reactionLog = reacted.agents?.lastDecisions.slice(0, 4).map((decision) => `${decision.agentId}: ${decision.action} — ${decision.rationale}`) ?? [];
-  return { ...reacted, log: [...reacted.log, ...reactionLog] };
+  const scenarioLog = scenarioResult.triggered.map((scenario) => `Scenario: ${scenario.title} — ${scenario.description}`);
+  const consequenceLog = consequenceResult.explanations;
+  return { ...reacted, replay, log: [...reacted.log, ...reactionLog, ...scenarioLog, ...consequenceLog] };
 }
 
 export function applyChoice(state: SimulationState, selected: SimulationChoice): SimulationState {
-  const business = state.business;
-  const effects = selected.effects;
+  const business = state.business; const effects = selected.effects;
   const customers = effects.customerTrust ? business.customers.map((customer, index) => index === 0 ? { ...customer, trust: clamp(customer.trust + effects.customerTrust) } : customer) : business.customers;
   const suppliers = effects.supplierRelationship ? business.suppliers.map((supplier, index) => index === 0 ? { ...supplier, relationship: clamp(supplier.relationship + effects.supplierRelationship) } : supplier) : business.suppliers;
   const extraCustomers = Math.max(0, Math.round(effects.customers ?? 0));
   const newCustomers = Array.from({ length: extraCustomers }, (_, index): Customer => ({ id: `customer-${business.customers.length + index + 1}-d${business.day}`, name: `New Customer ${business.customers.length + index + 1}`, segment: index % 3 === 0 ? "premium" : index % 2 === 0 ? "standard" : "budget", trust: 50, lifetimeValue: 0 }));
   const nextBusiness: Business = { ...business, cash: Math.max(0, business.cash + (effects.cash ?? 0)), revenue: business.revenue + (effects.revenue ?? 0), reputation: clamp(business.reputation + (effects.reputation ?? 0)), inventory: Math.max(0, business.inventory + (effects.inventory ?? 0)), customers: [...customers, ...newCustomers], suppliers, marketShare: clamp(business.marketShare + (effects.marketShare ?? 0)) };
   const economy = state.economy ? { ...state.economy, products: state.economy.products.map((product, index) => index === 0 ? { ...product, inventory: nextBusiness.inventory } : product) } : state.economy;
-  return { ...state, business: nextBusiness, economy, events: [], log: [...state.log, `Day ${business.day}: chose “${selected.label}”.`] };
+  const outcome = scoreDecisionOutcome(selected.id, selected.label, business.day, effects);
+  const delayed = Object.fromEntries(Object.entries(effects).filter(([key]) => key === "reputation" || key === "marketShare").map(([key, value]) => [key, value * 0.5]));
+  const consequence = Object.keys(delayed).length ? consequenceFromChoice(state, selected.id, delayed, 2, `The delayed effect of “${selected.label}” became visible.`) : undefined;
+  const consequenceState = consequence ? scheduleConsequence(state.consequences ?? createConsequenceState(), consequence) : state.consequences;
+  const replay = recordDecision(state.replay ?? createReplayState(1), selected.id);
+  return { ...state, business: nextBusiness, economy, consequences: consequenceState, replay, outcomes: [...(state.outcomes ?? []), outcome].slice(-100), events: [], log: [...state.log, `Day ${business.day}: chose “${selected.label}”.`] };
 }
+
+export function getRunAssessment(state: SimulationState) { return assessRun(state.business, state.outcomes ?? []); }
+export function getLifecycle(state: SimulationState) { return getLifecycleStage(state.business); }
