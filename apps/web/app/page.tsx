@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { advanceDay, applyBusinessAction, applyChoice, assessLearning, calculateKpis, createBusiness } from "@enterpriseverse/simulation";
 import type { BusinessAction } from "@enterpriseverse/simulation";
 import type { BusinessStructure, SimulationChoice, SimulationState } from "@enterpriseverse/types";
+import { DecisionExperience } from "./decision-experience";
+import "./decision-experience.css";
 
 const structures: { id: BusinessStructure; name: string; capital: string; description: string }[] = [
   { id: "sole_trader", name: "Sole Trader", capital: "₹20,000", description: "Maximum control. You own the upside and carry the risk." },
@@ -106,6 +108,17 @@ export default function Home() {
   const runAction = (action: BusinessAction) => { try { setActionError(""); setState((current) => current ? applyBusinessAction(current, action) : current); } catch (error) { setActionError(error instanceof Error ? error.message : "Action could not be completed."); } };
   const nav = (item: View, label: string) => <button type="button" className={`nav-item ${view === item ? "active" : ""}`} onClick={() => setView(item)}>{label}</button>;
 
+  const decisionOptions = event?.choices.map((choice) => ({
+    id: choice.id,
+    title: choice.label,
+    description: "Make this call and accept its consequences.",
+  })) ?? [];
+
+  const confirmDecision = (option: { id: string }) => {
+    const choice = event?.choices.find((candidate) => candidate.id === option.id);
+    if (choice) choose(choice);
+  };
+
   return <main className="shell">
     <header className="topbar"><div><div className="brand">ENTERPRISEVERSE</div><div className="brand-sub">Interactive Enterprise Simulator</div></div><div className="top-status"><span className="save-status">{saveNotice || (restored ? "RESUMED" : "AUTO-SAVE ON")}</span><span className="live-dot" /> LIVE · Day {state.business.day}<span className="day">{state.business.structure.replace("_", " ")}</span></div></header>
     <div className="app-layout">
@@ -124,7 +137,16 @@ export default function Home() {
 
         {(view === "overview" || view === "learning") && <section className="learning-grid"><div className="card learning-score-card"><div className="eyebrow">Learning cockpit</div><div className="learning-score"><div><span>Entrepreneurial performance</span><strong>{learning.overallScore}</strong><small>/100 · {learning.level}</small></div><div className="score-ring" style={{ "--score": `${learning.overallScore * 3.6}deg` } as React.CSSProperties}><b>{learning.overallScore}</b></div></div><p className="muted">{learning.summary}</p><div className="learning-columns"><div><div className="eyebrow">Strengths</div>{learning.strengths.map((item) => <div className="learning-item" key={item.dimension}><div className="learning-item-head"><strong>{titleCase(item.dimension)}</strong><b>{item.score}</b></div><div className="bar"><i style={{ width: `${item.score}%` }} /></div><span>{item.evidence}</span></div>)}</div><div><div className="eyebrow">Priority improvements</div>{learning.priorities.map((item) => <div className="learning-item" key={item.dimension}><div className="learning-item-head"><strong>{titleCase(item.dimension)}</strong><b>{item.score}</b></div><div className="bar"><i style={{ width: `${item.score}%` }} /></div><span>{item.nextStep}</span></div>)}</div></div></div><div className="card reflection-card"><div className="eyebrow">Founder reflection</div><h2>Think before the next move</h2><p className="muted small">EnterpriseVerse turns consequences into feedback. Use these questions to identify the reasoning behind your results.</p><div className="reflection-list">{learning.reflectionQuestions.map((question, index) => <div className="reflection-item" key={question}><span>0{index + 1}</span><p>{question}</p></div>)}</div><div className="learning-note"><strong>Learning level: {titleCase(learning.level)}</strong><span>Your assessment updates automatically as the business evolves.</span></div></div></section>}
 
-        <section className="decision-layout"><div className="card decision-card">{event ? <><div className="eyebrow">A decision has arrived · Day {event.day}</div><div className="event-title">{event.title}</div><div className="muted">{event.message}</div><div className="options">{event.choices.map((choice) => <button type="button" className="option" key={choice.id} onClick={() => choose(choice)}><strong>{choice.label}</strong><span>Make this call and accept its consequences.</span></button>)}</div></> : <><div className="eyebrow">Decision recorded</div><div className="event-title">Your choice changed the business.</div><div className="muted">Review the consequences, then continue to the next day.</div><div style={{ marginTop: 18 }}><button type="button" className="primary" onClick={nextDay}>Continue to Day {state.business.day + 1}</button></div></>}</div><div className="card"><div className="eyebrow">Founder log</div><div className="log">{[...state.log].reverse().map((entry, index) => <div className="log-item" key={`${entry}-${index}`}>{entry}</div>)}</div></div></section>
+        <section className="decision-layout"><div className="card decision-card">
+          <DecisionExperience
+            key={event ? `${event.day}-${event.title}` : "recorded"}
+            situation={event ? event.title : "Your choice changed the business."}
+            context={event ? <p className="muted">{event.message}</p> : <p className="muted">Review the consequences, then continue to the next day.</p>}
+            options={decisionOptions}
+            onConfirm={confirmDecision}
+            consequence={!event ? <><span>{state.log[state.log.length - 1] ?? "Decision recorded in the founder log."}</span><button type="button" className="primary" onClick={nextDay}>Continue to Day {state.business.day + 1}</button></> : undefined}
+          />
+        </div><div className="card"><div className="eyebrow">Founder log</div><div className="log">{[...state.log].reverse().map((entry, index) => <div className="log-item" key={`${entry}-${index}`}>{entry}</div>)}</div></div></section>
       </div>
     </div>
   </main>;
