@@ -1,11 +1,13 @@
-import type { Business, BusinessStructure, CharacterMemory, Customer, SimulationChoice, SimulationEvent, SimulationState, Supplier } from "@enterpriseverse/types";
+import type { Business, BusinessStructure, CharacterMemory, Customer, EconomyState, Product, SimulationChoice, SimulationEvent, SimulationState, Supplier } from "@enterpriseverse/types";
 import { defaultOperations } from "./operations";
 import { advanceMarket, createMarketState, explainMarketPosition } from "./market";
 import { createCompetitorAgents, createCustomerAgents, createInvestorAgents, createSupplierAgents, decideCompetitorMove, decideCustomerPurchase, evaluateInvestment } from "./agents";
+import { createProduct, emptyAccounting, inventoryValue } from "./economy";
 
 export { createCustomerAgents, createSupplierAgents, createCompetitorAgents, createInvestorAgents, decideCustomerPurchase, negotiateSupplier, decideCompetitorMove, evaluateInvestment } from "./agents";
 export { applyBusinessAction, calculateKpis, defaultOperations } from "./operations";
 export { advanceMarket, createMarketState, explainMarketPosition } from "./market";
+export * from "./economy";
 export type { BusinessAction } from "./operations";
 
 const STARTING_CASH: Record<BusinessStructure, number> = { sole_trader: 20_000, partnership: 35_000, trio: 50_000, team: 75_000 };
@@ -14,6 +16,10 @@ const clamp = (value: number) => Math.max(0, Math.min(100, value));
 const choice = (id: string, label: string, effects: Record<string, number>): SimulationChoice => ({ id, label, effects });
 function starterCustomers(): Customer[] { return [{ id: "customer-1", name: "Aarav", segment: "standard", trust: 60, lifetimeValue: 0 }, { id: "customer-2", name: "Mira", segment: "premium", trust: 72, lifetimeValue: 0 }, { id: "customer-3", name: "Kabir", segment: "budget", trust: 52, lifetimeValue: 0 }]; }
 function starterSuppliers(): Supplier[] { return [{ id: "supplier-1", name: "Prime Supplies", reliability: 86, unitCost: 60, relationship: 60, availableUnits: 100 }, { id: "supplier-2", name: "Value Wholesale", reliability: 68, unitCost: 48, relationship: 45, availableUnits: 80 }]; }
+function starterEconomy(): EconomyState {
+  const product = createProduct({ name: "Core Product", category: "starter", sellingPrice: 120, productionCost: 60, quality: 70, demandScore: 65, inventory: 20 });
+  return { products: [product], purchaseOrders: [], sales: [], accounting: { ...emptyAccounting(), inventoryValue: inventoryValue([product]) } };
+}
 function generateEvent(day: number, business: Business): SimulationEvent {
   const cycle = day % 5;
   if (cycle === 1) return { id: `event-${day}`, day, title: "Supplier price increase", message: "Your main supplier says input costs will rise by 12%. Decide how to protect your margin.", choices: [choice("accept", "Accept the increase", { cash: -900, reputation: 1, inventory: 12 }), choice("negotiate", "Negotiate a smaller increase", { cash: -450, reputation: 2, supplierRelationship: 4, inventory: 10 }), choice("switch", "Find another supplier", { cash: -250, reputation: -1, supplierRelationship: -6, inventory: 5 })] };
@@ -41,7 +47,7 @@ export function createBusiness(input: { name: string; idea: string; industry: st
   const startingCash = STARTING_CASH[input.structure];
   const founders = input.founderNames.map((name, index) => ({ id: `founder-${index + 1}`, name, cash: Math.round(startingCash / Math.max(1, input.founderNames.length)), reputation: 50, role: index === 0 ? "ceo" as const : undefined }));
   const business: Business = { id: `business-${input.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, name: input.name, idea: input.idea, industry: input.industry, structure: input.structure, founders, cash: startingCash, revenue: 0, expenses: 0, reputation: 50, day: 1, status: "active", inventory: 20, customers: starterCustomers(), suppliers: starterSuppliers(), marketShare: 1 };
-  return { business, operations: defaultOperations(), market: createMarketState(), agents: { customers: createCustomerAgents(), suppliers: createSupplierAgents(), competitors: createCompetitorAgents(), investors: createInvestorAgents(), lastDecisions: [] }, events: [generateEvent(1, business)], log: [`Day 1: ${business.name} opened in ${business.industry} with the idea “${business.idea}” and ₹${startingCash.toLocaleString("en-IN")} starting capital.`] };
+  return { business, operations: defaultOperations(), market: createMarketState(), economy: starterEconomy(), agents: { customers: createCustomerAgents(), suppliers: createSupplierAgents(), competitors: createCompetitorAgents(), investors: createInvestorAgents(), lastDecisions: [] }, events: [generateEvent(1, business)], log: [`Day 1: ${business.name} opened in ${business.industry} with the idea “${business.idea}” and ₹${startingCash.toLocaleString("en-IN")} starting capital.`] };
 }
 
 export function advanceDay(state: SimulationState): SimulationState {
@@ -62,7 +68,7 @@ export function advanceDay(state: SimulationState): SimulationState {
   const nextCustomers = business.customers.map((customer, index) => index < Math.min(unitsSold, business.customers.length) ? { ...customer, lastPurchaseDay: business.day + 1, lifetimeValue: customer.lifetimeValue + operations.price } : customer);
   const nextOperations = { ...operations, customerSatisfaction: clamp(operations.customerSatisfaction + (fulfilled ? 1 : -2) + (operations.quality - 50) / 100), marketingBudget: 0 };
   const nextBusiness: Business = { ...business, day: business.day + 1, revenue: business.revenue + revenue, expenses: business.expenses + fixedExpense, cash: business.cash + revenue - fixedExpense, inventory: nextInventory, customers: nextCustomers, reputation: clamp(business.reputation + (fulfilled ? 1 : -1)), marketShare: clamp(business.marketShare + (fulfilled ? 0.2 : -0.1)) };
-  const advanced: SimulationState = { business: nextBusiness, operations: nextOperations, market, agents: state.agents, events: [generateEvent(nextBusiness.day, nextBusiness)], log: [...state.log, `Day ${nextBusiness.day}: sold ${unitsSold}/${demand} units at ₹${operations.price}; revenue ₹${revenue.toLocaleString("en-IN")}; operating costs ₹${fixedExpense.toLocaleString("en-IN")}; market ${market.trend}, demand index ${market.demandIndex}. ${explainMarketPosition(operations, market)}`] };
+  const advanced: SimulationState = { business: nextBusiness, operations: nextOperations, market, economy: state.economy, agents: state.agents, events: [generateEvent(nextBusiness.day, nextBusiness)], log: [...state.log, `Day ${nextBusiness.day}: sold ${unitsSold}/${demand} units at ₹${operations.price}; revenue ₹${revenue.toLocaleString("en-IN")}; operating costs ₹${fixedExpense.toLocaleString("en-IN")}; market ${market.trend}, demand index ${market.demandIndex}. ${explainMarketPosition(operations, market)}`] };
   const reacted = runAgentRound(advanced);
   const reactionLog = reacted.agents?.lastDecisions.slice(0, 4).map((d) => `${d.agentId}: ${d.action} — ${d.rationale}`) ?? [];
   return { ...reacted, log: [...reacted.log, ...reactionLog] };
