@@ -10,7 +10,8 @@ export type BusinessAction =
   | { type: "repay_loan"; amount: number };
 
 const clamp = (value: number, min = 0, max = 100) => Math.max(min, Math.min(max, value));
-const money = (value: number) => Math.max(0, Math.round(value));
+const money = (value: number) => Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
+const wholeNumber = (value: number) => Number.isFinite(value) ? Math.floor(value) : 0;
 
 export function defaultOperations(): OperationsState {
   return {
@@ -62,7 +63,7 @@ export function applyBusinessAction(state: SimulationState, action: BusinessActi
       break;
     }
     case "restock": {
-      const units = Math.floor(action.units);
+      const units = wholeNumber(action.units);
       if (units < 1) throw new Error("Restock quantity must be positive.");
       const cost = units * operations.supplierUnitCost;
       if (cost > business.cash) throw new Error("Restock cost exceeds available cash.");
@@ -73,7 +74,7 @@ export function applyBusinessAction(state: SimulationState, action: BusinessActi
       break;
     }
     case "hire": {
-      const employees = Math.floor(action.employees);
+      const employees = wholeNumber(action.employees);
       if (employees < 1 || employees > 20) throw new Error("Hire between 1 and 20 employees at a time.");
       const hiringCost = employees * 1_500;
       if (hiringCost > business.cash) throw new Error("Hiring cost exceeds available cash.");
@@ -114,7 +115,8 @@ export function calculateKpis(state: SimulationState) {
   const operations = state.operations ?? defaultOperations();
   const profit = state.business.revenue - state.business.expenses;
   const grossMargin = state.business.revenue === 0 ? 0 : (profit / state.business.revenue) * 100;
-  const cashRunwayDays = operations.employees + 1 === 0 ? 0 : Math.floor(state.business.cash / Math.max(1, 450 + operations.employees * 150));
+  const dailyOperatingCost = Math.max(1, 450 + operations.employees * 150);
+  const cashRunwayDays = Math.max(0, Math.floor(state.business.cash / dailyOperatingCost));
 
   return {
     profit: Math.round(profit),
