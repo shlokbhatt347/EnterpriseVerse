@@ -6,6 +6,7 @@ export type RiskTolerance = "low" | "medium" | "high";
 export type ProductStatus = "active" | "discontinued";
 export type PurchaseOrderStatus = "draft" | "ordered" | "in_transit" | "delivered" | "cancelled";
 export type LedgerEntryType = "sale" | "purchase" | "expense" | "refund" | "investment" | "loan" | "other";
+export type SupplyChainDisruption = "none" | "supplier_delay" | "supplier_shortage" | "quality_issue" | "logistics_delay";
 
 export interface Founder { id: string; name: string; cash: number; reputation: number; role?: "founder" | "ceo" | "marketing" | "finance" | "operations"; }
 export interface Customer { id: string; name: string; segment: CustomerSegment; trust: number; lifetimeValue: number; lastPurchaseDay?: number; }
@@ -16,7 +17,23 @@ export interface PurchaseOrder { id: string; supplierId: string; productId: stri
 export interface Sale { id: string; day: number; productId: string; quantity: number; unitPrice: number; total: number; }
 export interface LedgerEntry { id: string; day: number; type: LedgerEntryType; description: string; debit: number; credit: number; }
 export interface AccountingState { cashIn: number; cashOut: number; grossProfit: number; netProfit: number; inventoryValue: number; ledger: LedgerEntry[]; }
-export interface EconomyState { products: Product[]; purchaseOrders: PurchaseOrder[]; sales: Sale[]; accounting: AccountingState; }
+
+export interface ProductionBatch { id: string; productId: string; plannedUnits: number; producedUnits: number; unitCost: number; quality: number; startDay: number; completionDay: number; status: "queued" | "in_progress" | "completed" | "cancelled"; }
+export interface SupplyChainState {
+  rawMaterialInventory: number;
+  reorderPoint: number;
+  targetStock: number;
+  productionCapacity: number;
+  productionCostPerUnit: number;
+  productionQuality: number;
+  pendingProduction: ProductionBatch[];
+  disruption: SupplyChainDisruption;
+  disruptionDaysRemaining: number;
+  lastDisruptionDay?: number;
+  stockoutDays: number;
+  overstockUnits: number;
+}
+export interface EconomyState { products: Product[]; purchaseOrders: PurchaseOrder[]; sales: Sale[]; accounting: AccountingState; supplyChain?: SupplyChainState; }
 export interface OperationsState { price: number; quality: number; marketingBudget: number; productionCapacity: number; employees: number; supplierUnitCost: number; brandAwareness: number; customerSatisfaction: number; debt: number; }
 export interface MarketState { demandIndex: number; marketPrice: number; competitorPrice: number; competitorQuality: number; competitorMarketShare: number; trend: "growing" | "stable" | "declining"; confidence: number; }
 export interface SimulationEvent { id: string; day: number; title: string; message: string; choices: SimulationChoice[]; }
