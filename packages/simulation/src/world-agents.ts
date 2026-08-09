@@ -41,7 +41,7 @@ export function createMarketActors(business: Business): MarketActor[] {
     {
       id: "competitor-1",
       name: "Market Rival",
-      kind: "competitor",
+      kind: "competitor" as const,
       mood: 60,
       relationship: 50,
     },
@@ -49,7 +49,7 @@ export function createMarketActors(business: Business): MarketActor[] {
 }
 
 export function decideCustomerActions(actors: MarketActor[], business: Business): ActorDecision[] {
-  return actors.filter((actor) => actor.kind === "customer").map((actor) => {
+  return actors.filter((actor) => actor.kind === "customer").map((actor): ActorDecision => {
     const loyalty = actor.relationship + business.reputation;
     if (loyalty >= 125) {
       return { actorId: actor.id, action: "repeat_purchase", impact: { demand: 2, reputation: 1 }, rationale: "Strong trust and reputation encourage a repeat purchase." };
@@ -62,7 +62,7 @@ export function decideCustomerActions(actors: MarketActor[], business: Business)
 }
 
 export function decideSupplierActions(actors: MarketActor[], business: Business): ActorDecision[] {
-  return actors.filter((actor) => actor.kind === "supplier").map((actor) => {
+  return actors.filter((actor) => actor.kind === "supplier").map((actor): ActorDecision => {
     if (actor.relationship >= 70) {
       return { actorId: actor.id, action: "offer_priority", impact: { supplierReliability: 2, inventory: 4 }, rationale: "A strong supplier relationship earns better treatment." };
     }
