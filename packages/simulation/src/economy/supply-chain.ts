@@ -37,11 +37,7 @@ export function queueProduction(
   requestedUnits?: number,
 ): { state: SupplyChainState; batch?: ProductionBatch } {
   const availableCapacity = Math.max(0, state.productionCapacity - state.pendingProduction.reduce((total, batch) => total + batch.plannedUnits, 0));
-  const units = Math.min(
-    state.rawMaterialInventory,
-    availableCapacity,
-    Math.max(0, Math.floor(requestedUnits ?? state.productionCapacity)),
-  );
+  const units = Math.min(state.rawMaterialInventory, availableCapacity, Math.max(0, Math.floor(requestedUnits ?? state.productionCapacity)));
   if (units <= 0) return { state };
 
   const batch: ProductionBatch = {
@@ -56,11 +52,7 @@ export function queueProduction(
     status: "queued",
   };
   return {
-    state: {
-      ...state,
-      rawMaterialInventory: state.rawMaterialInventory - units,
-      pendingProduction: [...state.pendingProduction, batch],
-    },
+    state: { ...state, rawMaterialInventory: state.rawMaterialInventory - units, pendingProduction: [...state.pendingProduction, batch] },
     batch,
   };
 }
@@ -77,7 +69,6 @@ export function advanceSupplyChainDay(
 
   let nextProducts = products;
   let producedUnits = 0;
-  const completed: ProductionBatch[] = [];
   const pending = state.pendingProduction.map((batch) => {
     if (batch.completionDay > day) return batch;
     const efficiency = disruption === "quality_issue" ? 0.9 : disruption === "logistics_delay" ? 0.85 : 1;
@@ -86,26 +77,17 @@ export function advanceSupplyChainDay(
       ? { ...product, inventory: product.inventory + units, productionCost: batch.unitCost, quality: clamp(batch.quality - (units < batch.plannedUnits ? 3 : 0)) }
       : product);
     producedUnits += units;
-    completed.push({ ...batch, producedUnits: units, status: "completed" });
     return { ...batch, producedUnits: units, status: "completed" as const };
   });
 
   const activePending = pending.filter((batch) => batch.status !== "completed");
   const firstProduct = nextProducts[0];
-  const desiredStock = Math.max(0, state.targetStock);
   const totalFinished = nextProducts.reduce((total, product) => total + product.inventory, 0);
-  const overstockUnits = Math.max(0, totalFinished - desiredStock);
+  const overstockUnits = Math.max(0, totalFinished - state.targetStock);
   const stockoutDays = firstProduct && firstProduct.inventory === 0 ? state.stockoutDays + 1 : state.stockoutDays;
 
   return {
-    state: {
-      ...state,
-      pendingProduction: activePending,
-      disruption,
-      disruptionDaysRemaining: remaining,
-      stockoutDays,
-      overstockUnits,
-    },
+    state: { ...state, pendingProduction: activePending, disruption, disruptionDaysRemaining: remaining, stockoutDays, overstockUnits },
     products: nextProducts,
     producedUnits,
     disruption,
