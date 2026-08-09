@@ -8,9 +8,11 @@ export { createCustomerAgents, createSupplierAgents, createCompetitorAgents, cre
 export { applyBusinessAction, calculateKpis, defaultOperations } from "./operations";
 export { advanceMarket, createMarketState, explainMarketPosition } from "./market";
 export { calculateIntegratedMetrics, validateIntegratedState } from "./integration";
+export { assessLearning, scoreDecisionOutcome } from "./learning";
 export * from "./economy";
 export type { BusinessAction } from "./operations";
 export type { IntegratedMetrics } from "./integration";
+export type { LearningAssessment, LearningDimension, LearningScore } from "./learning";
 
 const STARTING_CASH: Record<BusinessStructure, number> = { sole_trader: 20_000, partnership: 35_000, trio: 50_000, team: 75_000 };
 const STRUCTURE_EXPENSE: Record<BusinessStructure, number> = { sole_trader: 450, partnership: 700, trio: 1_050, team: 1_500 };
