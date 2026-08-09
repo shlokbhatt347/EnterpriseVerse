@@ -1,5 +1,5 @@
 import type { EconomyState, LedgerEntry, Product, PurchaseOrder, Supplier } from "@enterpriseverse/types";
-import { receiveInventory, inventoryValue } from "./inventory";
+import { inventoryValue } from "./inventory";
 import { createPurchaseOrder, negotiateUnitCost } from "./procurement";
 import { calculateDemand, sellProduct } from "./sales";
 import { recordPurchase, recordSale, summarizeAccounting } from "./accounting";
@@ -17,13 +17,7 @@ export interface EconomyDayResult {
 
 export function createEconomyState(products: Product[] = [], purchaseOrders: PurchaseOrder[] = []): EconomyState {
   const firstProduct = products[0];
-  return {
-    products,
-    purchaseOrders,
-    sales: [],
-    accounting: summarizeAccounting([], [], products),
-    supplyChain: createSupplyChainState(firstProduct),
-  };
+  return { products, purchaseOrders, sales: [], accounting: summarizeAccounting([], [], products), supplyChain: createSupplyChainState(firstProduct) };
 }
 
 export function placePurchaseOrder(
@@ -31,17 +25,9 @@ export function placePurchaseOrder(
   input: { supplier: Supplier; productId: string; quantity: number; day: number; leadDays?: number },
 ): EconomyState {
   const orderId = `po-${state.purchaseOrders.length + 1}-d${input.day}`;
-  const order = createPurchaseOrder({
-    id: orderId,
-    supplier: input.supplier,
-    productId: input.productId,
-    quantity: input.quantity,
-    orderDay: input.day,
-    leadDays: input.leadDays,
-  });
+  const order = createPurchaseOrder({ id: orderId, supplier: input.supplier, productId: input.productId, quantity: input.quantity, orderDay: input.day, leadDays: input.leadDays });
   const unitCost = negotiateUnitCost(input.supplier, order.quantity, input.supplier.relationship);
-  const pricedOrder: PurchaseOrder = { ...order, unitCost };
-  return { ...state, purchaseOrders: [...state.purchaseOrders, pricedOrder] };
+  return { ...state, purchaseOrders: [...state.purchaseOrders, { ...order, unitCost }] };
 }
 
 export function advanceEconomyDay(
@@ -62,18 +48,12 @@ export function advanceEconomyDay(
 
   const purchaseOrders: PurchaseOrder[] = state.purchaseOrders.map((order) => {
     if (order.status !== "ordered" || order.deliveryDay > day) return order;
-
     const product = products.find((item) => item.id === order.productId);
     if (!product) return { ...order, status: "cancelled" };
-
     const supplier = suppliers.find((item) => item.id === order.supplierId);
-    if (supplyChain.disruption === "supplier_shortage" && supplier?.id === primarySupplier?.id) {
+    if ((supplyChain.disruption === "supplier_shortage" || supplyChain.disruption === "supplier_delay") && supplier?.id === primarySupplier?.id) {
       return { ...order, deliveryDay: order.deliveryDay + 1 };
     }
-    if (supplyChain.disruption === "supplier_delay" && supplier?.id === primarySupplier?.id) {
-      return { ...order, deliveryDay: order.deliveryDay + 1 };
-    }
-
     supplyChain = { ...supplyChain, rawMaterialInventory: supplyChain.rawMaterialInventory + order.quantity };
     procurementSpend += order.quantity * order.unitCost;
     unitsDelivered += order.quantity;
@@ -83,13 +63,15 @@ export function advanceEconomyDay(
 
   const firstProduct = products[0];
   if (firstProduct) {
+    supplyChain = {
+      ...supplyChain,
+      productionCostPerUnit: Math.max(1, Math.round(firstProduct.productionCost)),
+      productionQuality: firstProduct.quality,
+    };
     const finishedInventory = products.reduce((total, product) => total + product.inventory, 0);
-    const outstandingUnits = purchaseOrders
-      .filter((order) => order.status === "ordered")
-      .reduce((total, order) => total + order.quantity, 0);
+    const outstandingUnits = purchaseOrders.filter((order) => order.status === "ordered").reduce((total, order) => total + order.quantity, 0);
     const desiredProduction = Math.max(0, supplyChain.targetStock - finishedInventory - outstandingUnits);
-    const queued = queueProduction(supplyChain, firstProduct, day, desiredProduction);
-    supplyChain = queued.state;
+    supplyChain = queueProduction(supplyChain, firstProduct, day, desiredProduction).state;
   }
 
   const productionResult = advanceSupplyChainDay(supplyChain, products, day);
@@ -99,7 +81,6 @@ export function advanceEconomyDay(
   const sales = [...state.sales];
   let revenue = 0;
   let unitsSold = 0;
-
   for (const product of products) {
     if (product.status !== "active") continue;
     const demand = calculateDemand(product, marketDemand, competitorPrice ?? product.sellingPrice);
@@ -121,15 +102,8 @@ export function advanceEconomyDay(
     const openOrders = purchaseOrders.filter((order) => order.status === "ordered").reduce((total, order) => total + order.quantity, 0);
     const reorderQuantity = Math.max(0, supplyChain.targetStock - supplyChain.rawMaterialInventory - openOrders);
     const selectedSupplier = selectSupplier(suppliers, reorderQuantity);
-    if (selectedSupplier && reorderQuantity > 0) {
-      const orderId = `po-auto-${purchaseOrders.length + 1}-d${day}`;
-      const order = createPurchaseOrder({
-        id: orderId,
-        supplier: selectedSupplier,
-        productId: products[0]?.id ?? "unknown",
-        quantity: reorderQuantity,
-        orderDay: day,
-      });
+    if (selectedSupplier && reorderQuantity > 0 && products[0]) {
+      const order = createPurchaseOrder({ id: `po-auto-${purchaseOrders.length + 1}-d${day}`, supplier: selectedSupplier, productId: products[0].id, quantity: reorderQuantity, orderDay: day });
       const unitCost = negotiateUnitCost(selectedSupplier, order.quantity, selectedSupplier.relationship);
       purchaseOrders.push({ ...order, unitCost });
     }
@@ -137,10 +111,7 @@ export function advanceEconomyDay(
 
   const ledger: LedgerEntry[] = [...state.accounting.ledger, ...purchaseEntries, ...saleEntries];
   const accounting = summarizeAccounting(ledger, sales, products);
-  supplyChain = {
-    ...supplyChain,
-    overstockUnits: Math.max(0, products.reduce((total, product) => total + product.inventory, 0) - supplyChain.targetStock),
-  };
+  supplyChain = { ...supplyChain, overstockUnits: Math.max(0, products.reduce((total, product) => total + product.inventory, 0) - supplyChain.targetStock) };
 
   return {
     economy: { products, purchaseOrders, sales, accounting, supplyChain },
@@ -154,10 +125,7 @@ export function advanceEconomyDay(
 }
 
 export function economySnapshot(state: EconomyState): EconomyState {
-  return {
-    ...state,
-    accounting: summarizeAccounting(state.accounting.ledger, state.sales, state.products),
-  };
+  return { ...state, accounting: summarizeAccounting(state.accounting.ledger, state.sales, state.products) };
 }
 
 export function currentInventoryValue(state: EconomyState): number {
