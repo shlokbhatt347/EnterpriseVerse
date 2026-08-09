@@ -79,16 +79,8 @@ function runAgentRound(state: SimulationState): SimulationState {
 
   const suppliers = world.suppliers.map((agent) => ({ ...agent, memories: agent.memories.slice(-8) }));
   const customerEffect = customerSignal / Math.max(1, customers.length);
-  const nextBusiness: Business = {
-    ...business,
-    reputation: clamp(business.reputation + customerEffect * 0.4 - competitorPressure * 0.02),
-    marketShare: clamp(business.marketShare + customerEffect * 0.08 - competitorPressure * 0.01),
-  };
-  const market = state.market ? {
-    ...state.market,
-    competitivePressure: clamp(state.market.competitivePressure + competitorPressure * 0.25),
-    strategyScore: clamp(state.market.strategyScore + customerEffect * 1.5 - competitorPressure * 0.1),
-  } : state.market;
+  const nextBusiness: Business = { ...business, reputation: clamp(business.reputation + customerEffect * 0.4 - competitorPressure * 0.02), marketShare: clamp(business.marketShare + customerEffect * 0.08 - competitorPressure * 0.01) };
+  const market = state.market ? { ...state.market, competitivePressure: clamp(state.market.competitivePressure + competitorPressure * 0.25), strategyScore: clamp(state.market.strategyScore + customerEffect * 1.5 - competitorPressure * 0.1) } : state.market;
   return { ...state, business: nextBusiness, market, agents: { customers, suppliers, competitors, investors, lastDecisions: decisions } };
 }
 
@@ -118,7 +110,9 @@ export function advanceDay(state: SimulationState): SimulationState {
   const nextBusiness: Business = { ...business, day: business.day + 1, revenue: business.revenue + revenue, expenses: business.expenses + fixedExpense + economyResult.procurementSpend, cash: business.cash + revenue - fixedExpense - economyResult.procurementSpend, inventory: productInventory, customers: nextCustomers, reputation: clamp(business.reputation + (demandFulfilled ? 1 : -1)), marketShare: clamp(business.marketShare + (demandFulfilled ? 0.2 : -0.1)) };
   const supplyChain = economyResult.economy.supplyChain;
   const advanced: SimulationState = { business: nextBusiness, operations: nextOperations, market, economy: economyResult.economy, agents: state.agents, events: [generateEvent(nextBusiness.day, nextBusiness)], log: [...state.log, `Day ${nextBusiness.day}: sold ${unitsSold} units for ₹${revenue.toLocaleString("en-IN")}; produced ${economyResult.unitsProduced}; delivered ${economyResult.unitsDelivered}; procurement ₹${economyResult.procurementSpend.toLocaleString("en-IN")}; supply-chain risk ${economyResult.supplyChainRisk}/100; inventory ${productInventory}; raw materials ${supplyChain?.rawMaterialInventory ?? 0}; ${explainMarketPosition(operations, market)}`] };
-  return runAgentRound(advanced);
+  const reacted = runAgentRound(advanced);
+  const reactionLog = reacted.agents?.lastDecisions.slice(0, 4).map((decision) => `${decision.agentId}: ${decision.action} — ${decision.rationale}`) ?? [];
+  return { ...reacted, log: [...reacted.log, ...reactionLog] };
 }
 
 export function applyChoice(state: SimulationState, selected: SimulationChoice): SimulationState {
