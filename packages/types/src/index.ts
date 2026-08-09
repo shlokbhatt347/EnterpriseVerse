@@ -1,5 +1,5 @@
 export type BusinessStructure = "sole_trader" | "partnership" | "trio" | "team";
-export type BusinessStatus = "planning" | "active" | "paused" | "failed";
+export type BusinessStatus = "planning" | "active" | "paused" | "failed" | "exited";
 export type CustomerSegment = "budget" | "standard" | "premium";
 export type CharacterMood = "happy" | "neutral" | "concerned" | "angry" | "excited" | "competitive" | "confident";
 export type RiskTolerance = "low" | "medium" | "high";
@@ -7,6 +7,9 @@ export type ProductStatus = "active" | "discontinued";
 export type PurchaseOrderStatus = "draft" | "ordered" | "in_transit" | "delivered" | "cancelled";
 export type LedgerEntryType = "sale" | "purchase" | "expense" | "refund" | "investment" | "loan" | "other";
 export type SupplyChainDisruption = "none" | "supplier_delay" | "supplier_shortage" | "quality_issue" | "logistics_delay";
+export type LifecycleStage = "launch" | "survival" | "growth" | "expansion" | "maturity" | "crisis" | "exit";
+export type EmployeeRole = "operations" | "sales" | "marketing" | "finance" | "product" | "generalist";
+export type ScenarioCategory = "macro" | "market" | "operations" | "finance" | "people" | "supply";
 
 export interface Founder { id: string; name: string; cash: number; reputation: number; role?: "founder" | "ceo" | "marketing" | "finance" | "operations"; }
 export interface Customer { id: string; name: string; segment: CustomerSegment; trust: number; lifetimeValue: number; lastPurchaseDay?: number; }
@@ -32,4 +35,18 @@ export interface CompetitorAgent extends AICharacter { role: "competitor"; strat
 export interface InvestorAgent extends AICharacter { role: "investor"; investmentCapacity: number; growthPreference: number; riskAppetite: number; minimumEquity: number; }
 export interface AgentDecision { agentId: string; action: string; rationale: string; effects: Record<string, number>; memory: CharacterMemory; }
 export interface AgentWorldState { customers: CustomerAgent[]; suppliers: SupplierAgent[]; competitors: CompetitorAgent[]; investors: InvestorAgent[]; lastDecisions: AgentDecision[]; }
-export interface SimulationState { business: Business; operations?: OperationsState; market?: MarketState; economy?: EconomyState; agents?: AgentWorldState; events: SimulationEvent[]; log: string[]; }
+
+export interface Employee { id: string; name: string; role: EmployeeRole; salary: number; skill: number; morale: number; productivity: number; loyalty: number; workload: number; employedDay: number; }
+export interface WorkforceState { employees: Employee[]; hiringBudget: number; trainingBudget: number; turnoverRisk: number; productivityIndex: number; moraleIndex: number; payroll: number; }
+export interface FinancialSnapshot { day: number; revenue: number; expenses: number; grossProfit: number; netProfit: number; cash: number; debt: number; inventoryValue: number; workingCapital: number; burnRate: number; runwayDays: number; valuation: number; }
+export interface Consequence { id: string; source: string; day: number; delayDays: number; effects: Record<string, number>; explanation: string; }
+export interface ConsequenceState { pending: Consequence[]; resolved: Consequence[]; }
+export interface ScenarioDefinition { id: string; category: ScenarioCategory; title: string; description: string; probability: number; durationDays: number; effects: Record<string, number>; tags: string[]; }
+export interface ActiveScenario extends ScenarioDefinition { startDay: number; daysRemaining: number; }
+export interface ScenarioState { seed: number; active: ActiveScenario[]; history: string[]; }
+export interface ReplaySnapshot { day: number; business: Business; operations?: OperationsState; market?: MarketState; financials?: FinancialSnapshot; }
+export interface ReplayState { seed: number; snapshots: ReplaySnapshot[]; decisions: string[]; }
+export interface DecisionOutcome { decisionId: string; label: string; day: number; effects: Record<string, number>; score: number; explanation: string; }
+export interface EntrepreneurProfile { primary: string; secondary: string; strengths: string[]; blindSpots: string[]; }
+export interface RunAssessment { score: number; profile: EntrepreneurProfile; strengths: string[]; lessons: string[]; recommendations: string[]; }
+export interface SimulationState { business: Business; operations?: OperationsState; market?: MarketState; economy?: EconomyState; agents?: AgentWorldState; workforce?: WorkforceState; financials?: FinancialSnapshot; consequences?: ConsequenceState; scenarios?: ScenarioState; replay?: ReplayState; outcomes?: DecisionOutcome[]; events: SimulationEvent[]; log: string[]; }
