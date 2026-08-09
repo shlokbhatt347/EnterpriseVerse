@@ -63,6 +63,9 @@ describe("practical business operations", () => {
     expect(kpis.quality).toBe(50);
     expect(kpis.productionCapacity).toBe(20);
     expect(kpis.debt).toBe(0);
-    expect(kpis.cashRunwayDays).toBe(28);
+    // Default operations have one employee. Daily operating cost is
+    // ₹450 base cost + ₹150 employee cost = ₹600, so ₹20,000 cash
+    // provides floor(20,000 / 600) = 33 days of runway.
+    expect(kpis.cashRunwayDays).toBe(33);
   });
 });
