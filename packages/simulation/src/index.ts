@@ -7,8 +7,10 @@ import { advanceEconomyDay, createEconomyState, createProduct } from "./economy"
 export { createCustomerAgents, createSupplierAgents, createCompetitorAgents, createInvestorAgents, decideCustomerPurchase, negotiateSupplier, decideCompetitorMove, evaluateInvestment } from "./agents";
 export { applyBusinessAction, calculateKpis, defaultOperations } from "./operations";
 export { advanceMarket, createMarketState, explainMarketPosition } from "./market";
+export { calculateIntegratedMetrics, validateIntegratedState } from "./integration";
 export * from "./economy";
 export type { BusinessAction } from "./operations";
+export type { IntegratedMetrics } from "./integration";
 
 const STARTING_CASH: Record<BusinessStructure, number> = { sole_trader: 20_000, partnership: 35_000, trio: 50_000, team: 75_000 };
 const STRUCTURE_EXPENSE: Record<BusinessStructure, number> = { sole_trader: 450, partnership: 700, trio: 1_050, team: 1_500 };
@@ -53,7 +55,6 @@ function runAgentRound(state: SimulationState): SimulationState {
   const decisions = [] as typeof world.lastDecisions;
   let customerSignal = 0;
   let competitorPressure = 0;
-
   const customers = world.customers.map((agent) => {
     const decision = decideCustomerPurchase(agent, business, operations.price);
     decisions.push(decision);
@@ -61,7 +62,6 @@ function runAgentRound(state: SimulationState): SimulationState {
     customerSignal += purchased ? 1 : -1;
     return { ...agent, trust: clamp(agent.trust + (purchased ? 1 : -2)), relationship: clamp(agent.relationship + (purchased ? 2 : -1)), loyalty: clamp(agent.loyalty + (purchased ? 1 : -1)), mood: purchased ? "happy" as const : "concerned" as const, memories: updateMemory(agent.memories, decision.memory) };
   });
-
   const competitors = world.competitors.map((agent) => {
     const decision = decideCompetitorMove(agent, business);
     decisions.push(decision);
@@ -69,14 +69,12 @@ function runAgentRound(state: SimulationState): SimulationState {
     const aggressive = decision.action !== "observe";
     return { ...agent, cash: Math.max(0, agent.cash - (decision.action === "discount_campaign" ? 800 : 150)), marketShare: clamp(agent.marketShare + (decision.action === "discount_campaign" ? 0.4 : 0.1)), aggression: clamp(agent.aggression + (aggressive ? 1 : -1)), memories: updateMemory(agent.memories, decision.memory) };
   });
-
   const investors = world.investors.map((agent) => {
     const decision = evaluateInvestment(agent, business);
     decisions.push(decision);
     const invested = decision.action === "offer_investment";
     return { ...agent, investmentCapacity: Math.max(0, agent.investmentCapacity - (decision.effects.cash ?? 0)), relationship: clamp(agent.relationship + (invested ? 5 : -1)), trust: clamp(agent.trust + (invested ? 2 : -1)), mood: invested ? "excited" as const : "neutral" as const, memories: updateMemory(agent.memories, decision.memory) };
   });
-
   const suppliers = world.suppliers.map((agent) => ({ ...agent, memories: agent.memories.slice(-8) }));
   const customerEffect = customerSignal / Math.max(1, customers.length);
   const nextBusiness: Business = { ...business, reputation: clamp(business.reputation + customerEffect * 0.4 - competitorPressure * 0.02), marketShare: clamp(business.marketShare + customerEffect * 0.08 - competitorPressure * 0.01) };
