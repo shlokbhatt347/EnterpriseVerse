@@ -17,6 +17,17 @@ describe("practical business operations", () => {
     expect(next.business.cash).toBe(state.business.cash);
   });
 
+  it("rejects non-finite action inputs instead of poisoning business state", () => {
+    const state = createState();
+    expect(() => applyBusinessAction(state, { type: "set_price", price: Number.NaN })).toThrow();
+    expect(() => applyBusinessAction(state, { type: "marketing", budget: Number.NaN })).not.toThrow();
+    const afterMarketing = applyBusinessAction(state, { type: "marketing", budget: Number.NaN });
+    expect(afterMarketing.business.cash).toBe(state.business.cash);
+    expect(Number.isFinite(afterMarketing.business.cash)).toBe(true);
+    expect(() => applyBusinessAction(state, { type: "restock", units: Number.NaN })).toThrow();
+    expect(() => applyBusinessAction(state, { type: "hire", employees: Number.NaN })).toThrow();
+  });
+
   it("makes marketing a real cash decision", () => {
     const state = createState();
     const next = applyBusinessAction(state, { type: "marketing", budget: 1000 });
@@ -52,5 +63,6 @@ describe("practical business operations", () => {
     expect(kpis.quality).toBe(50);
     expect(kpis.productionCapacity).toBe(20);
     expect(kpis.debt).toBe(0);
+    expect(kpis.cashRunwayDays).toBe(28);
   });
 });
