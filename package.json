@@ -5,6 +5,10 @@
   "scripts": {
     "dev:web": "pnpm --dir apps/web dev",
     "dev:api": "cd apps/api && uvicorn app.main:app --reload",
-    "test:simulation": "pnpm --dir packages/simulation test"
+    "test:simulation": "pnpm --dir packages/simulation test",
+    "typecheck:simulation": "pnpm exec tsc --noEmit -p packages/simulation/tsconfig.json",
+    "typecheck:web": "pnpm --dir apps/web exec tsc --noEmit",
+    "build:web": "pnpm --dir apps/web build",
+    "check": "pnpm test:simulation && pnpm typecheck:simulation && pnpm typecheck:web && pnpm build:web"
   }
 }
