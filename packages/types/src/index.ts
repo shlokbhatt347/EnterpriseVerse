@@ -17,25 +17,11 @@ export interface PurchaseOrder { id: string; supplierId: string; productId: stri
 export interface Sale { id: string; day: number; productId: string; quantity: number; unitPrice: number; total: number; }
 export interface LedgerEntry { id: string; day: number; type: LedgerEntryType; description: string; debit: number; credit: number; }
 export interface AccountingState { cashIn: number; cashOut: number; grossProfit: number; netProfit: number; inventoryValue: number; ledger: LedgerEntry[]; }
-
 export interface ProductionBatch { id: string; productId: string; plannedUnits: number; producedUnits: number; unitCost: number; quality: number; startDay: number; completionDay: number; status: "queued" | "in_progress" | "completed" | "cancelled"; }
-export interface SupplyChainState {
-  rawMaterialInventory: number;
-  reorderPoint: number;
-  targetStock: number;
-  productionCapacity: number;
-  productionCostPerUnit: number;
-  productionQuality: number;
-  pendingProduction: ProductionBatch[];
-  disruption: SupplyChainDisruption;
-  disruptionDaysRemaining: number;
-  lastDisruptionDay?: number;
-  stockoutDays: number;
-  overstockUnits: number;
-}
+export interface SupplyChainState { rawMaterialInventory: number; reorderPoint: number; targetStock: number; productionCapacity: number; productionCostPerUnit: number; productionQuality: number; pendingProduction: ProductionBatch[]; disruption: SupplyChainDisruption; disruptionDaysRemaining: number; lastDisruptionDay?: number; stockoutDays: number; overstockUnits: number; }
 export interface EconomyState { products: Product[]; purchaseOrders: PurchaseOrder[]; sales: Sale[]; accounting: AccountingState; supplyChain?: SupplyChainState; }
 export interface OperationsState { price: number; quality: number; marketingBudget: number; productionCapacity: number; employees: number; supplierUnitCost: number; brandAwareness: number; customerSatisfaction: number; debt: number; }
-export interface MarketState { demandIndex: number; marketPrice: number; competitorPrice: number; competitorQuality: number; competitorMarketShare: number; trend: "growing" | "stable" | "declining"; confidence: number; }
+export interface MarketState { demandIndex: number; marketPrice: number; competitorPrice: number; competitorQuality: number; competitorMarketShare: number; trend: "growing" | "stable" | "declining"; confidence: number; priceElasticity: number; customerAcquisition: number; competitivePressure: number; strategyScore: number; }
 export interface SimulationEvent { id: string; day: number; title: string; message: string; choices: SimulationChoice[]; }
 export interface SimulationChoice { id: string; label: string; effects: Record<string, number>; }
 export interface CharacterMemory { day: number; summary: string; sentiment: number; }
