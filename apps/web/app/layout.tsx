@@ -10,11 +10,15 @@ export const metadata: Metadata = {
   themeColor: "#070b14",
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
-        <a className="skip-link" href="#main-content">Skip to main content</a>
+        <a className="skip-link" href="#main-content">
+          Skip to main content
+        </a>
         <ThemeToggle />
         <div id="main-content">{children}</div>
       </body>
