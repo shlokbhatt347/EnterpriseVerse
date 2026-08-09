@@ -35,10 +35,17 @@ jobs:
       - name: Build web app
         run: pnpm --dir apps/web build
 
+      - name: Validate API Python syntax
+        run: python -m compileall -q apps/api/app
+
       - name: Verify required project files
         run: |
           test -f README.md
           test -f docs/01_PRD.md
           test -f packages/simulation/src/index.ts
+          test -f packages/simulation/src/economy/index.ts
+          test -f packages/simulation/src/market.ts
+          test -f packages/simulation/src/world.ts
           test -f apps/web/app/page.tsx
           test -f apps/api/app/main.py
+          test -f apps/api/requirements.txt
