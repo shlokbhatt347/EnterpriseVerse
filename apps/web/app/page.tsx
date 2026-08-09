@@ -11,8 +11,11 @@ const structures: { id: BusinessStructure; name: string; capital: string; descri
   { id: "trio", name: "Trio", capital: "₹50,000", description: "Three founders. More capability, but more coordination." },
   { id: "team", name: "Company", capital: "₹75,000", description: "A larger founding team with roles, shared control and higher costs." },
 ];
-
 const industries = ["Food & Beverage", "Retail", "Technology", "Services", "Manufacturing", "Creative", "Other"];
+type View = "overview" | "operations" | "market" | "people" | "finance";
+
+const money = (value: number) => `₹${Math.round(value).toLocaleString("en-IN")}`;
+const clamp = (value: number) => Math.max(0, Math.min(100, Math.round(value)));
 
 export default function Home() {
   const [started, setStarted] = useState(false);
@@ -23,6 +26,7 @@ export default function Home() {
   const [structure, setStructure] = useState<BusinessStructure>("sole_trader");
   const [partners, setPartners] = useState("");
   const [state, setState] = useState<SimulationState | null>(null);
+  const [view, setView] = useState<View>("overview");
   const [priceInput, setPriceInput] = useState("120");
   const [budgetInput, setBudgetInput] = useState("1000");
   const [qualityInput, setQualityInput] = useState("1000");
@@ -42,82 +46,37 @@ export default function Home() {
   };
 
   if (!started || !state) {
-    return (
-      <main className="shell">
-        <div className="content onboarding">
-          <div className="eyebrow">EnterpriseVerse · Founder Mode</div>
-          <h1>Build a business.<br />Learn by running it.</h1>
-          <p className="muted">There are no lessons waiting for you. You will face customers, suppliers, competitors and money problems—and your decisions will create the learning.</p>
-          <section className="step card">
-            <div className="eyebrow">01 · Founder</div>
-            <div className="field"><label>Your name</label><input value={founder} onChange={(event) => setFounder(event.target.value)} placeholder="Founder name" /></div>
-          </section>
-          <section className="step card">
-            <div className="eyebrow">02 · Your enterprise</div>
-            <div className="field"><label>Business name</label><input value={businessName} onChange={(event) => setBusinessName(event.target.value)} placeholder="e.g. Nova Foods" /></div>
-            <div className="field"><label>What problem are you solving?</label><textarea value={idea} onChange={(event) => setIdea(event.target.value)} placeholder="Describe the product, service or problem you want to solve..." /></div>
-            <div className="field"><label>Industry</label><select value={industry} onChange={(event) => setIndustry(event.target.value)}>{industries.map((item) => <option key={item}>{item}</option>)}</select></div>
-          </section>
-          <section className="step card">
-            <div className="eyebrow">03 · How will you build?</div>
-            <p className="muted">Your structure changes capital, operating costs, control and coordination.</p>
-            <div className="structures">
-              {structures.map((item) => <button key={item.id} className={`structure ${structure === item.id ? "selected" : ""}`} onClick={() => setStructure(item.id)}><strong>{item.name}</strong><span>{item.capital} starting capital</span><span>{item.description}</span></button>)}
-            </div>
-            {structure !== "sole_trader" && <div className="field"><label>Co-founders, separated by commas</label><input value={partners} onChange={(event) => setPartners(event.target.value)} placeholder={structure === "partnership" ? "e.g. Aarav" : structure === "trio" ? "e.g. Aarav, Mira" : "e.g. Aarav, Mira, Kabir"} /><span className="muted">Maximum founders for this structure: {structure === "partnership" ? 2 : structure === "trio" ? 3 : 6}. First founder is CEO.</span></div>}
-          </section>
-          <div className="onboard-footer"><span className="pill">Starting capital · {selected.capital}</span><button className="primary" onClick={launch} disabled={!founder.trim() || !businessName.trim() || !idea.trim()}>Start Day 1 →</button></div>
-        </div>
-      </main>
-    );
+    return <main className="shell"><div className="content onboarding"><div className="eyebrow">EnterpriseVerse · Founder Mode</div><h1>Build a business.<br />Learn by running it.</h1><p className="muted">There are no lessons waiting for you. Customers, suppliers, competitors, money and your decisions create the learning.</p><section className="step card"><div className="eyebrow">01 · Founder</div><div className="field"><label>Your name</label><input value={founder} onChange={(e) => setFounder(e.target.value)} placeholder="Founder name" /></div></section><section className="step card"><div className="eyebrow">02 · Your enterprise</div><div className="field"><label>Business name</label><input value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="e.g. Nova Foods" /></div><div className="field"><label>What problem are you solving?</label><textarea value={idea} onChange={(e) => setIdea(e.target.value)} placeholder="Describe the product, service or problem you want to solve..." /></div><div className="field"><label>Industry</label><select value={industry} onChange={(e) => setIndustry(e.target.value)}>{industries.map((item) => <option key={item}>{item}</option>)}</select></div></section><section className="step card"><div className="eyebrow">03 · How will you build?</div><p className="muted">Your structure changes capital, operating costs, control and coordination.</p><div className="structures">{structures.map((item) => <button key={item.id} className={`structure ${structure === item.id ? "selected" : ""}`} onClick={() => setStructure(item.id)}><strong>{item.name}</strong><span>{item.capital} starting capital</span><span>{item.description}</span></button>)}</div>{structure !== "sole_trader" && <div className="field"><label>Co-founders, separated by commas</label><input value={partners} onChange={(e) => setPartners(e.target.value)} placeholder="e.g. Aarav, Mira" /><span className="muted">Maximum founders: {structure === "partnership" ? 2 : structure === "trio" ? 3 : 6}. First founder is CEO.</span></div>}</section><div className="onboard-footer"><span className="pill">Starting capital · {selected.capital}</span><button className="primary" onClick={launch} disabled={!founder.trim() || !businessName.trim() || !idea.trim()}>Start Day 1 →</button></div></div></main>;
   }
 
   const event = state.events[0];
   const kpis = calculateKpis(state);
+  const market = state.market;
+  const economy = state.economy;
+  const agents = state.agents;
   const choose = (choice: SimulationChoice) => setState((current) => current ? applyChoice(current, choice) : current);
   const nextDay = () => setState((current) => current ? advanceDay(current) : current);
-  const runAction = (action: BusinessAction) => {
-    try {
-      setActionError("");
-      setState((current) => current ? applyBusinessAction(current, action) : current);
-    } catch (error) {
-      setActionError(error instanceof Error ? error.message : "Action could not be completed.");
-    }
-  };
+  const runAction = (action: BusinessAction) => { try { setActionError(""); setState((current) => current ? applyBusinessAction(current, action) : current); } catch (error) { setActionError(error instanceof Error ? error.message : "Action could not be completed."); } };
+  const nav = (item: View, label: string) => <button className={`nav-item ${view === item ? "active" : ""}`} onClick={() => setView(item)}>{label}</button>;
 
-  return (
-    <main className="shell">
-      <header className="topbar"><div className="brand">ENTERPRISEVERSE</div><div className="day">Day {state.business.day} · {state.business.structure.replace("_", " ")}</div></header>
-      <div className="content">
-        <section className="hero"><div><div className="eyebrow">{state.business.industry} · Your enterprise</div><h1>{state.business.name}</h1><div className="muted">{state.business.idea}</div></div><button className="primary" onClick={nextDay} disabled={Boolean(event)}>End Day →</button></section>
-        <section className="stats">
-          <div className="card"><div className="stat-label">CASH</div><div className="stat-value">₹{state.business.cash.toLocaleString("en-IN")}</div></div>
-          <div className="card"><div className="stat-label">REVENUE</div><div className="stat-value">₹{state.business.revenue.toLocaleString("en-IN")}</div></div>
-          <div className="card"><div className="stat-label">PROFIT</div><div className="stat-value">₹{kpis.profit.toLocaleString("en-IN")}</div></div>
-          <div className="card"><div className="stat-label">CUSTOMERS</div><div className="stat-value">{state.business.customers.length}</div></div>
-          <div className="card"><div className="stat-label">REPUTATION</div><div className="stat-value">{state.business.reputation}/100</div></div>
-        </section>
+  return <main className="shell">
+    <header className="topbar"><div><div className="brand">ENTERPRISEVERSE</div><div className="brand-sub">Interactive Enterprise Simulator</div></div><div className="top-status"><span className="live-dot" /> LIVE · Day {state.business.day}<span className="day">{state.business.structure.replace("_", " ")}</span></div></header>
+    <div className="app-layout">
+      <aside className="sidebar"><div className="side-title">COMMAND</div>{nav("overview", "Overview")}{nav("operations", "Operations")}{nav("market", "Market")}{nav("people", "People")}{nav("finance", "Finance")}<div className="side-divider" /><div className="side-title">BUSINESS</div><div className="side-stat"><span>Reputation</span><b>{state.business.reputation}/100</b></div><div className="side-stat"><span>Market share</span><b>{state.business.marketShare.toFixed(1)}%</b></div><div className="side-stat"><span>Inventory</span><b>{state.business.inventory}</b></div></aside>
+      <div className="content dashboard">
+        <section className="hero"><div><div className="eyebrow">{state.business.industry} · Executive dashboard</div><h1>{state.business.name}</h1><div className="muted">{state.business.idea}</div></div><div className="hero-actions"><span className="pill">{market?.trend ?? "stable"} market</span><button className="primary" onClick={nextDay} disabled={Boolean(event)}>End Day →</button></div></section>
+        <section className="stats"><div className="card stat-card"><div className="stat-label">CASH</div><div className="stat-value">{money(state.business.cash)}</div><div className="stat-meta">{kpis.cashRunwayDays} days runway</div></div><div className="card stat-card"><div className="stat-label">REVENUE</div><div className="stat-value">{money(state.business.revenue)}</div><div className="stat-meta">{economy?.sales.length ?? 0} recorded sales</div></div><div className="card stat-card"><div className="stat-label">PROFIT</div><div className="stat-value">{money(kpis.profit)}</div><div className="stat-meta">{kpis.grossMargin}% margin</div></div><div className="card stat-card"><div className="stat-label">CUSTOMERS</div><div className="stat-value">{state.business.customers.length}</div><div className="stat-meta">{kpis.customerSatisfaction}% satisfaction</div></div><div className="card stat-card"><div className="stat-label">MARKET SHARE</div><div className="stat-value">{state.business.marketShare.toFixed(1)}%</div><div className="stat-meta">Demand {market?.demandIndex ?? 100}</div></div></section>
 
-        <section className="operations card">
-          <div className="eyebrow">CEO control room · practical decisions</div>
-          <div className="operations-header"><div><div className="event-title">Run the business</div><div className="muted">Every action changes cash, capacity, demand or long-term performance. There is no theory screen.</div></div><span className="pill">Debt · ₹{kpis.debt.toLocaleString("en-IN")}</span></div>
-          {actionError && <div className="error">{actionError}</div>}
-          <div className="action-grid">
-            <div className="action-card"><strong>Pricing</strong><span>Current ₹{kpis.price}</span><div className="action-row"><input value={priceInput} onChange={(e) => setPriceInput(e.target.value)} type="number" min="20" max="2000" /><button className="secondary" onClick={() => runAction({ type: "set_price", price: Number(priceInput) })}>Set price</button></div></div>
-            <div className="action-card"><strong>Marketing</strong><span>Buy awareness with cash</span><div className="action-row"><input value={budgetInput} onChange={(e) => setBudgetInput(e.target.value)} type="number" min="0" /><button className="secondary" onClick={() => runAction({ type: "marketing", budget: Number(budgetInput) })}>Launch</button></div></div>
-            <div className="action-card"><strong>Quality</strong><span>Improve satisfaction</span><div className="action-row"><input value={qualityInput} onChange={(e) => setQualityInput(e.target.value)} type="number" min="0" /><button className="secondary" onClick={() => runAction({ type: "improve_quality", investment: Number(qualityInput) })}>Invest</button></div></div>
-            <div className="action-card"><strong>Inventory</strong><span>Cost ₹{kpis.price > 0 ? state.operations?.supplierUnitCost ?? 60 : 60}/unit</span><div className="action-row"><input value={stockInput} onChange={(e) => setStockInput(e.target.value)} type="number" min="1" /><button className="secondary" onClick={() => runAction({ type: "restock", units: Number(stockInput) })}>Restock</button></div></div>
-            <div className="action-card"><strong>Hiring</strong><span>{kpis.employees} employees · capacity {kpis.productionCapacity}</span><div className="action-row"><input value={hireInput} onChange={(e) => setHireInput(e.target.value)} type="number" min="1" max="20" /><button className="secondary" onClick={() => runAction({ type: "hire", employees: Number(hireInput) })}>Hire</button></div></div>
-            <div className="action-card"><strong>Finance</strong><span>Borrow or repay capital</span><div className="action-row"><input value={loanInput} onChange={(e) => setLoanInput(e.target.value)} type="number" min="1000" /><button className="secondary" onClick={() => runAction({ type: "loan", amount: Number(loanInput) })}>Borrow</button><button className="secondary" onClick={() => runAction({ type: "repay_loan", amount: Number(loanInput) })}>Repay</button></div></div>
-          </div>
-          <div className="kpi-strip"><span>Quality <b>{kpis.quality}</b></span><span>Awareness <b>{kpis.brandAwareness}</b></span><span>Satisfaction <b>{kpis.customerSatisfaction}</b></span><span>Margin <b>{kpis.grossMargin}%</b></span><span>Runway <b>{kpis.cashRunwayDays} days</b></span></div>
-        </section>
+        {(view === "overview" || view === "operations") && <section className="operations card"><div className="section-head"><div><div className="eyebrow">CEO control room</div><div className="event-title">Operate the enterprise</div><div className="muted">Decisions are persistent. Price, quality, marketing, capacity and finance all feed the simulation.</div></div><span className="pill">Debt · {money(kpis.debt)}</span></div>{actionError && <div className="error">{actionError}</div>}<div className="action-grid"><div className="action-card"><strong>Pricing</strong><span>Current {money(kpis.price)}</span><div className="action-row"><input value={priceInput} onChange={(e) => setPriceInput(e.target.value)} type="number" min="20" max="2000" /><button className="secondary" onClick={() => runAction({ type: "set_price", price: Number(priceInput) })}>Set</button></div></div><div className="action-card"><strong>Marketing</strong><span>Build brand awareness</span><div className="action-row"><input value={budgetInput} onChange={(e) => setBudgetInput(e.target.value)} type="number" min="0" /><button className="secondary" onClick={() => runAction({ type: "marketing", budget: Number(budgetInput) })}>Launch</button></div></div><div className="action-card"><strong>Quality</strong><span>Current {kpis.quality}/100</span><div className="action-row"><input value={qualityInput} onChange={(e) => setQualityInput(e.target.value)} type="number" min="0" /><button className="secondary" onClick={() => runAction({ type: "improve_quality", investment: Number(qualityInput) })}>Invest</button></div></div><div className="action-card"><strong>Inventory</strong><span>{state.business.inventory} units available</span><div className="action-row"><input value={stockInput} onChange={(e) => setStockInput(e.target.value)} type="number" min="1" /><button className="secondary" onClick={() => runAction({ type: "restock", units: Number(stockInput) })}>Restock</button></div></div><div className="action-card"><strong>Hiring</strong><span>{kpis.employees} employees · capacity {kpis.productionCapacity}</span><div className="action-row"><input value={hireInput} onChange={(e) => setHireInput(e.target.value)} type="number" min="1" max="20" /><button className="secondary" onClick={() => runAction({ type: "hire", employees: Number(hireInput) })}>Hire</button></div></div><div className="action-card"><strong>Finance</strong><span>Debt {money(kpis.debt)}</span><div className="action-row"><input value={loanInput} onChange={(e) => setLoanInput(e.target.value)} type="number" min="1000" /><button className="secondary" onClick={() => runAction({ type: "loan", amount: Number(loanInput) })}>Borrow</button><button className="secondary" onClick={() => runAction({ type: "repay_loan", amount: Number(loanInput) })}>Repay</button></div></div></div><div className="kpi-strip"><span>Quality <b>{kpis.quality}</b></span><span>Awareness <b>{kpis.brandAwareness}</b></span><span>Satisfaction <b>{kpis.customerSatisfaction}</b></span><span>Employees <b>{kpis.employees}</b></span><span>Capacity <b>{kpis.productionCapacity}</b></span></div></section>}
 
-        <section className="grid">
-          <div className="card">{event ? <><div className="eyebrow">A decision has arrived</div><div className="event-title">{event.title}</div><div className="muted">{event.message}</div><div className="options">{event.choices.map((choice) => <button className="option" key={choice.id} onClick={() => choose(choice)}><strong>{choice.label}</strong><span>Make this call and accept its consequences.</span></button>)}</div></> : <><div className="eyebrow">Decision recorded</div><div className="event-title">Your choice changed the business.</div><div className="muted">Review the consequences, then advance to the next day.</div><div style={{ marginTop: 18 }}><button className="primary" onClick={nextDay}>Continue to Day {state.business.day + 1}</button></div></>}</div>
-          <div className="card"><div className="eyebrow">Founder log</div><div className="log">{[...state.log].reverse().map((entry, index) => <div className="log-item" key={`${entry}-${index}`}>{entry}</div>)}</div></div>
-        </section>
+        {(view === "overview" || view === "market") && <section className="insight-grid"><div className="card"><div className="eyebrow">Market intelligence</div><h2>{market?.trend === "growing" ? "Demand is accelerating" : market?.trend === "declining" ? "Demand is under pressure" : "Market is stable"}</h2><div className="metric-row"><span>Demand index</span><b>{market?.demandIndex ?? 100}</b></div><div className="bar"><i style={{ width: `${clamp(market?.demandIndex ?? 100)}%` }} /></div><div className="metric-row"><span>Your share</span><b>{state.business.marketShare.toFixed(1)}%</b></div><div className="metric-row"><span>Competitor share</span><b>{market?.competitorMarketShare.toFixed(1) ?? "0.0"}%</b></div><div className="metric-row"><span>Competitor price</span><b>{money(market?.competitorPrice ?? 0)}</b></div><p className="muted small">{market ? `Market confidence is ${market.confidence}/100. ${market.demandIndex > 110 ? "Capacity and inventory are becoming strategic constraints." : market.demandIndex < 90 ? "Protect cash and avoid unnecessary fixed costs." : "Use this stable period to strengthen your competitive position."}` : "Market intelligence will appear after launch."}</p></div><div className="card"><div className="eyebrow">Business health</div><h2>Performance cockpit</h2><div className="health-list"><div><span>Quality</span><b>{kpis.quality}</b><div className="bar"><i style={{ width: `${kpis.quality}%` }} /></div></div><div><span>Brand awareness</span><b>{kpis.brandAwareness}</b><div className="bar"><i style={{ width: `${kpis.brandAwareness}%` }} /></div></div><div><span>Customer satisfaction</span><b>{kpis.customerSatisfaction}</b><div className="bar"><i style={{ width: `${kpis.customerSatisfaction}%` }} /></div></div><div><span>Reputation</span><b>{state.business.reputation}</b><div className="bar"><i style={{ width: `${state.business.reputation}%` }} /></div></div></div></div></section>}
+
+        {(view === "overview" || view === "people") && <section className="people-grid"><div className="card"><div className="eyebrow">Stakeholders</div><h2>People in your market</h2><div className="people-stats"><div><b>{agents?.customers.length ?? state.business.customers.length}</b><span>Customer agents</span></div><div><b>{agents?.suppliers.length ?? state.business.suppliers.length}</b><span>Supplier agents</span></div><div><b>{agents?.competitors.length ?? 0}</b><span>Competitors</span></div><div><b>{agents?.investors.length ?? 0}</b><span>Investors</span></div></div><div className="agent-feed">{(agents?.lastDecisions ?? []).slice(-5).reverse().map((decision) => <div className="feed-item" key={`${decision.agentId}-${decision.memory.day}-${decision.action}`}><span className="feed-dot" /><div><strong>{decision.action.replaceAll("_", " ")}</strong><p>{decision.rationale}</p></div></div>)}{!agents?.lastDecisions.length && <div className="muted">Agent decisions will appear after the first day advances.</div>}</div></div><div className="card"><div className="eyebrow">Founding team</div><h2>Your leadership</h2>{state.business.founders.map((founder) => <div className="founder-row" key={founder.id}><div className="avatar">{founder.name.charAt(0).toUpperCase()}</div><div><strong>{founder.name}</strong><span>{founder.role ?? "founder"}</span></div><b>{founder.reputation}/100</b></div>)}</div></section>}
+
+        {(view === "overview" || view === "finance") && <section className="finance-grid"><div className="card"><div className="eyebrow">Financial command</div><h2>Cash & profitability</h2><div className="finance-total">{money(state.business.cash)}</div><div className="muted">Available cash</div><div className="finance-columns"><div><span>Revenue</span><b>{money(state.business.revenue)}</b></div><div><span>Expenses</span><b>{money(state.business.expenses)}</b></div><div><span>Profit</span><b>{money(kpis.profit)}</b></div><div><span>Debt</span><b>{money(kpis.debt)}</b></div></div></div><div className="card"><div className="eyebrow">Economy</div><h2>Trading activity</h2><div className="finance-columns"><div><span>Products</span><b>{economy?.products.length ?? 0}</b></div><div><span>Sales</span><b>{economy?.sales.length ?? 0}</b></div><div><span>Orders</span><b>{economy?.purchaseOrders.length ?? 0}</b></div><div><span>Inventory value</span><b>{money(economy?.accounting.inventoryValue ?? 0)}</b></div></div><div className="muted small">The accounting engine tracks economic activity independently from your visible cash balance.</div></div></section>}
+
+        <section className="decision-layout"><div className="card decision-card">{event ? <><div className="eyebrow">A decision has arrived · Day {event.day}</div><div className="event-title">{event.title}</div><div className="muted">{event.message}</div><div className="options">{event.choices.map((choice) => <button className="option" key={choice.id} onClick={() => choose(choice)}><strong>{choice.label}</strong><span>Make this call and accept its consequences.</span></button>)}</div></> : <><div className="eyebrow">Decision recorded</div><div className="event-title">Your choice changed the business.</div><div className="muted">Review the consequences, then continue to the next day.</div><div style={{ marginTop: 18 }}><button className="primary" onClick={nextDay}>Continue to Day {state.business.day + 1}</button></div></>}</div><div className="card"><div className="eyebrow">Founder log</div><div className="log">{[...state.log].reverse().map((entry, index) => <div className="log-item" key={`${entry}-${index}`}>{entry}</div>)}</div></div></section>
       </div>
-    </main>
-  );
+    </div>
+  </main>;
 }
