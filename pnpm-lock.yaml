@@ -1,0 +1,44 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+  .:
+    dependencies: {}
+    devDependencies:
+      '@types/node':
+        specifier: ^22.20.1
+        version: 22.20.1
+      prettier: 
+        specifier: ^3.6.2
+        version: 3.6.2
+      turbo:
+        specifier: ^2.5.6
+        version: 2.5.6
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.2
+      vitest:
+        specifier: ^3.2.7
+        version: 3.2.7
+
+packages:
+  '@types/node@22.20.1':
+    resolution: {integrity: sha512-REGENERATE_WITH_PNPM_INSTALL}
+  prettier@3.6.2:
+    resolution: {integrity: sha512-REGENERATE_WITH_PNPM_INSTALL}
+  turbo@2.5.6:
+    resolution: {integrity: sha512-REGENERATE_WITH_PNPM_INSTALL}
+  typescript@5.9.2:
+    resolution: {integrity: sha512-REGENERATE_WITH_PNPM_INSTALL}
+  vitest@3.2.7:
+    resolution: {integrity: sha512-REGENERATE_WITH_PNPM_INSTALL}
+
+snapshots:
+  '@types/node@22.20.1': {}
+  prettier@3.6.2: {}
+  turbo@2.5.6: {}
+  typescript@5.9.2: {}
+  vitest@3.2.7: {}
