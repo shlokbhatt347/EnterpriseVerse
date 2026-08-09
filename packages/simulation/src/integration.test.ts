@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createBusiness } from "./index";
+import { advanceDay, createBusiness } from "./index";
 import { calculateIntegratedMetrics, validateIntegratedState } from "./integration";
 
 describe("integrated business engine", () => {
@@ -31,7 +31,7 @@ describe("integrated business engine", () => {
 
   it("keeps cross-system metrics bounded after a simulation day", () => {
     const state = createBusiness({ name: "Dynamic Co", idea: "A product", industry: "Retail", structure: "team", founderNames: ["A", "B", "C"] });
-    const next = (require("./index") as typeof import("./index")).advanceDay(state);
+    const next = advanceDay(state);
     const metrics = calculateIntegratedMetrics(next);
 
     expect(validateIntegratedState(next)).toEqual([]);
