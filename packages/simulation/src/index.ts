@@ -2,7 +2,7 @@ import type { Business, BusinessStructure, CharacterMemory, Customer, EconomySta
 import { defaultOperations } from "./operations";
 import { advanceMarket, createMarketState, explainMarketPosition } from "./market";
 import { createCompetitorAgents, createCustomerAgents, createInvestorAgents, createSupplierAgents, decideCompetitorMove, decideCustomerPurchase, evaluateInvestment } from "./agents";
-import { advanceEconomyDay, createProduct, emptyAccounting, inventoryValue } from "./economy";
+import { advanceEconomyDay, createEconomyState, createProduct } from "./economy";
 
 export { createCustomerAgents, createSupplierAgents, createCompetitorAgents, createInvestorAgents, decideCustomerPurchase, negotiateSupplier, decideCompetitorMove, evaluateInvestment } from "./agents";
 export { applyBusinessAction, calculateKpis, defaultOperations } from "./operations";
@@ -32,7 +32,7 @@ function starterSuppliers(): Supplier[] {
 
 function starterEconomy(): EconomyState {
   const product = createProduct({ name: "Core Product", category: "starter", sellingPrice: 120, productionCost: 60, quality: 70, demandScore: 65, inventory: 20 });
-  return { products: [product], purchaseOrders: [], sales: [], accounting: { ...emptyAccounting(), inventoryValue: inventoryValue([product]) } };
+  return createEconomyState([product]);
 }
 
 function generateEvent(day: number, business: Business): SimulationEvent {
@@ -77,7 +77,7 @@ export function advanceDay(state: SimulationState): SimulationState {
     ? { ...product, sellingPrice: operations.price, quality: operations.quality, inventory: business.inventory, demandScore: clamp(product.demandScore + operations.brandAwareness / 20) }
     : product);
   const economyInput: EconomyState = { ...economyBefore, products: synchronizedProducts };
-  const economyResult = advanceEconomyDay(economyInput, business.day + 1, market.demandIndex, market.competitorPrice);
+  const economyResult = advanceEconomyDay(economyInput, business.day + 1, market.demandIndex, market.competitorPrice, business.suppliers);
   const productInventory = economyResult.economy.products.reduce((total, product) => total + product.inventory, 0);
   const revenue = economyResult.revenue;
   const unitsSold = economyResult.unitsSold;
@@ -97,6 +97,7 @@ export function advanceDay(state: SimulationState): SimulationState {
     reputation: clamp(business.reputation + (demandFulfilled ? 1 : -1)),
     marketShare: clamp(business.marketShare + (demandFulfilled ? 0.2 : -0.1)),
   };
+  const supplyChain = economyResult.economy.supplyChain;
   const advanced: SimulationState = {
     business: nextBusiness,
     operations: nextOperations,
@@ -104,7 +105,7 @@ export function advanceDay(state: SimulationState): SimulationState {
     economy: economyResult.economy,
     agents: state.agents,
     events: [generateEvent(nextBusiness.day, nextBusiness)],
-    log: [...state.log, `Day ${nextBusiness.day}: sold ${unitsSold} units for ₹${revenue.toLocaleString("en-IN")}; procurement ₹${economyResult.procurementSpend.toLocaleString("en-IN")}; operating costs ₹${fixedExpense.toLocaleString("en-IN")}; inventory ${productInventory}; ${explainMarketPosition(operations, market)}`],
+    log: [...state.log, `Day ${nextBusiness.day}: sold ${unitsSold} units for ₹${revenue.toLocaleString("en-IN")}; produced ${economyResult.unitsProduced}; delivered ${economyResult.unitsDelivered}; procurement ₹${economyResult.procurementSpend.toLocaleString("en-IN")}; supply-chain risk ${economyResult.supplyChainRisk}/100; inventory ${productInventory}; raw materials ${supplyChain?.rawMaterialInventory ?? 0}; ${explainMarketPosition(operations, market)}`],
   };
   const reacted = runAgentRound(advanced);
   const reactionLog = reacted.agents?.lastDecisions.slice(0, 4).map((d) => `${d.agentId}: ${d.action} — ${d.rationale}`) ?? [];
@@ -119,9 +120,6 @@ export function applyChoice(state: SimulationState, selected: SimulationChoice):
   const extraCustomers = Math.max(0, Math.round(effects.customers ?? 0));
   const newCustomers = Array.from({ length: extraCustomers }, (_, index): Customer => ({ id: `customer-${business.customers.length + index + 1}-d${business.day}`, name: `New Customer ${business.customers.length + index + 1}`, segment: index % 3 === 0 ? "premium" : index % 2 === 0 ? "standard" : "budget", trust: 50, lifetimeValue: 0 }));
   const nextBusiness: Business = { ...business, cash: Math.max(0, business.cash + (effects.cash ?? 0)), revenue: business.revenue + (effects.revenue ?? 0), reputation: clamp(business.reputation + (effects.reputation ?? 0)), inventory: Math.max(0, business.inventory + (effects.inventory ?? 0)), customers: [...customers, ...newCustomers], suppliers, marketShare: clamp(business.marketShare + (effects.marketShare ?? 0)) };
-  const economy = state.economy ? {
-    ...state.economy,
-    products: state.economy.products.map((product, index) => index === 0 ? { ...product, inventory: nextBusiness.inventory } : product),
-  } : state.economy;
+  const economy = state.economy ? { ...state.economy, products: state.economy.products.map((product, index) => index === 0 ? { ...product, inventory: nextBusiness.inventory } : product) } : state.economy;
   return { ...state, business: nextBusiness, economy, events: [], log: [...state.log, `Day ${business.day}: chose “${selected.label}”.`] };
 }
