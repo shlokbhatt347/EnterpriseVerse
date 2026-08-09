@@ -73,30 +73,16 @@ export function advanceDay(state: SimulationState): SimulationState {
   const market = advanceMarket(business.day + 1, business, operations, previousMarket);
   const fixedExpense = STRUCTURE_EXPENSE[business.structure] + operations.employees * 150;
   const economyBefore = state.economy ?? starterEconomy();
-  const synchronizedProducts: Product[] = economyBefore.products.map((product, index) => index === 0
-    ? { ...product, sellingPrice: operations.price, quality: operations.quality, inventory: business.inventory, demandScore: clamp(product.demandScore + operations.brandAwareness / 20) }
-    : product);
+  const synchronizedProducts: Product[] = economyBefore.products.map((product, index) => index === 0 ? { ...product, sellingPrice: operations.price, quality: operations.quality, inventory: business.inventory, demandScore: clamp(product.demandScore + operations.brandAwareness / 20) } : product);
   const economyInput: EconomyState = { ...economyBefore, products: synchronizedProducts };
   const economyResult = advanceEconomyDay(economyInput, business.day + 1, market.demandIndex, market.competitorPrice, business.suppliers);
   const productInventory = economyResult.economy.products.reduce((total, product) => total + product.inventory, 0);
   const revenue = economyResult.revenue;
   const unitsSold = economyResult.unitsSold;
   const demandFulfilled = unitsSold > 0 && unitsSold < synchronizedProducts[0].inventory ? unitsSold >= Math.round(unitsSold * 1.1) : unitsSold > 0;
-  const nextCustomers = business.customers.map((customer, index) => index < Math.min(unitsSold, business.customers.length)
-    ? { ...customer, lastPurchaseDay: business.day + 1, lifetimeValue: customer.lifetimeValue + operations.price }
-    : customer);
+  const nextCustomers = business.customers.map((customer, index) => index < Math.min(unitsSold, business.customers.length) ? { ...customer, lastPurchaseDay: business.day + 1, lifetimeValue: customer.lifetimeValue + operations.price } : customer);
   const nextOperations = { ...operations, customerSatisfaction: clamp(operations.customerSatisfaction + (demandFulfilled ? 1 : -1) + (operations.quality - 50) / 100), marketingBudget: 0 };
-  const nextBusiness: Business = {
-    ...business,
-    day: business.day + 1,
-    revenue: business.revenue + revenue,
-    expenses: business.expenses + fixedExpense + economyResult.procurementSpend,
-    cash: business.cash + revenue - fixedExpense - economyResult.procurementSpend,
-    inventory: productInventory,
-    customers: nextCustomers,
-    reputation: clamp(business.reputation + (demandFulfilled ? 1 : -1)),
-    marketShare: clamp(business.marketShare + (demandFulfilled ? 0.2 : -0.1)),
-  };
+  const nextBusiness: Business = { ...business, day: business.day + 1, revenue: business.revenue + revenue, expenses: business.expenses + fixedExpense + economyResult.procurementSpend, cash: business.cash + revenue - fixedExpense - economyResult.procurementSpend, inventory: productInventory, customers: nextCustomers, reputation: clamp(business.reputation + (demandFulfilled ? 1 : -1)), marketShare: clamp(business.marketShare + (demandFulfilled ? 0.2 : -0.1)) };
   const supplyChain = economyResult.economy.supplyChain;
   const advanced: SimulationState = {
     business: nextBusiness,
