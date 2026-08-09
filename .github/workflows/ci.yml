@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, develop, 'feat/**']
+    branches: [main, develop, 'feat/**', 'chore/**']
   pull_request:
     branches: [main, develop]
 
@@ -30,10 +30,13 @@ jobs:
         run: pnpm test:simulation
 
       - name: Typecheck simulation package
-        run: pnpm exec tsc --noEmit -p packages/simulation/tsconfig.json
+        run: pnpm typecheck:simulation
+
+      - name: Typecheck web app
+        run: pnpm typecheck:web
 
       - name: Build web app
-        run: pnpm --dir apps/web build
+        run: pnpm build:web
 
       - name: Validate API Python syntax
         run: python -m compileall -q apps/api/app

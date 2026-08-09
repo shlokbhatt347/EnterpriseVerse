@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
 export type DecisionOption = {
@@ -25,7 +25,12 @@ export function DecisionExperience({
   consequence?: ReactNode;
 }) {
   const [selected, setSelected] = useState<string | null>(null);
+  const optionKey = options.map((option) => option.id).join("|");
   const chosen = useMemo(() => options.find((option) => option.id === selected), [options, selected]);
+
+  useEffect(() => {
+    setSelected(null);
+  }, [optionKey]);
 
   return (
     <section className="decision-experience" aria-labelledby="decision-title">
