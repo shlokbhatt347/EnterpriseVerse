@@ -1,0 +1,3 @@
+/* Reserved for Phase 12 screen-specific styles. Keep shared primitives in globals.css. */
+.ui-grid{display:grid;gap:12px}.ui-grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}.ui-grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}.ui-stack{display:grid;gap:12px}.ui-split{display:flex;justify-content:space-between;align-items:center;gap:16px}.ui-muted{color:var(--ui-muted)}
+@media(max-width:700px){.ui-grid-2,.ui-grid-3{grid-template-columns:1fr}.ui-split{align-items:stretch;flex-direction:column}}
