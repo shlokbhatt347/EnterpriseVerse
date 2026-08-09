@@ -49,14 +49,47 @@ function updateMemory(memories: CharacterMemory[], memory: CharacterMemory): Cha
 function runAgentRound(state: SimulationState): SimulationState {
   const business = state.business;
   const operations = state.operations ?? defaultOperations();
-  const existing = state.agents;
-  const world = existing ?? { customers: createCustomerAgents(), suppliers: createSupplierAgents(), competitors: createCompetitorAgents(), investors: createInvestorAgents(), lastDecisions: [] };
+  const world = state.agents ?? { customers: createCustomerAgents(), suppliers: createSupplierAgents(), competitors: createCompetitorAgents(), investors: createInvestorAgents(), lastDecisions: [] };
   const decisions = [] as typeof world.lastDecisions;
-  const customers = world.customers.map((agent) => { const decision = decideCustomerPurchase(agent, business, operations.price); decisions.push(decision); const purchased = decision.action === "purchase"; return { ...agent, trust: clamp(agent.trust + (purchased ? 1 : -2)), relationship: clamp(agent.relationship + (purchased ? 2 : -1)), loyalty: clamp(agent.loyalty + (purchased ? 1 : -1)), mood: purchased ? "happy" as const : "concerned" as const, memories: updateMemory(agent.memories, decision.memory) }; });
-  const competitors = world.competitors.map((agent) => { const decision = decideCompetitorMove(agent, business); decisions.push(decision); return { ...agent, cash: Math.max(0, agent.cash - (decision.action === "discount_campaign" ? 800 : 150)), marketShare: clamp(agent.marketShare + (decision.action === "discount_campaign" ? 0.4 : 0.1)), aggression: clamp(agent.aggression + ((decision.effects.competitorPressure ?? 0) > 0 ? 1 : -1)), memories: updateMemory(agent.memories, decision.memory) }; });
-  const investors = world.investors.map((agent) => { const decision = evaluateInvestment(agent, business); decisions.push(decision); const invested = decision.action === "offer_investment"; return { ...agent, investmentCapacity: Math.max(0, agent.investmentCapacity - (decision.effects.cash ?? 0)), relationship: clamp(agent.relationship + (invested ? 5 : -1)), trust: clamp(agent.trust + (invested ? 2 : -1)), mood: invested ? "excited" as const : "neutral" as const, memories: updateMemory(agent.memories, decision.memory) }; });
+  let customerSignal = 0;
+  let competitorPressure = 0;
+
+  const customers = world.customers.map((agent) => {
+    const decision = decideCustomerPurchase(agent, business, operations.price);
+    decisions.push(decision);
+    const purchased = decision.action === "purchase";
+    customerSignal += purchased ? 1 : -1;
+    return { ...agent, trust: clamp(agent.trust + (purchased ? 1 : -2)), relationship: clamp(agent.relationship + (purchased ? 2 : -1)), loyalty: clamp(agent.loyalty + (purchased ? 1 : -1)), mood: purchased ? "happy" as const : "concerned" as const, memories: updateMemory(agent.memories, decision.memory) };
+  });
+
+  const competitors = world.competitors.map((agent) => {
+    const decision = decideCompetitorMove(agent, business);
+    decisions.push(decision);
+    competitorPressure += decision.effects.competitorPressure ?? 0;
+    const aggressive = decision.action !== "observe";
+    return { ...agent, cash: Math.max(0, agent.cash - (decision.action === "discount_campaign" ? 800 : 150)), marketShare: clamp(agent.marketShare + (decision.action === "discount_campaign" ? 0.4 : 0.1)), aggression: clamp(agent.aggression + (aggressive ? 1 : -1)), memories: updateMemory(agent.memories, decision.memory) };
+  });
+
+  const investors = world.investors.map((agent) => {
+    const decision = evaluateInvestment(agent, business);
+    decisions.push(decision);
+    const invested = decision.action === "offer_investment";
+    return { ...agent, investmentCapacity: Math.max(0, agent.investmentCapacity - (decision.effects.cash ?? 0)), relationship: clamp(agent.relationship + (invested ? 5 : -1)), trust: clamp(agent.trust + (invested ? 2 : -1)), mood: invested ? "excited" as const : "neutral" as const, memories: updateMemory(agent.memories, decision.memory) };
+  });
+
   const suppliers = world.suppliers.map((agent) => ({ ...agent, memories: agent.memories.slice(-8) }));
-  return { ...state, agents: { customers, suppliers, competitors, investors, lastDecisions: decisions } };
+  const customerEffect = customerSignal / Math.max(1, customers.length);
+  const nextBusiness: Business = {
+    ...business,
+    reputation: clamp(business.reputation + customerEffect * 0.4 - competitorPressure * 0.02),
+    marketShare: clamp(business.marketShare + customerEffect * 0.08 - competitorPressure * 0.01),
+  };
+  const market = state.market ? {
+    ...state.market,
+    competitivePressure: clamp(state.market.competitivePressure + competitorPressure * 0.25),
+    strategyScore: clamp(state.market.strategyScore + customerEffect * 1.5 - competitorPressure * 0.1),
+  } : state.market;
+  return { ...state, business: nextBusiness, market, agents: { customers, suppliers, competitors, investors, lastDecisions: decisions } };
 }
 
 export function createBusiness(input: { name: string; idea: string; industry: string; structure: BusinessStructure; founderNames: string[] }): SimulationState {
@@ -79,23 +112,13 @@ export function advanceDay(state: SimulationState): SimulationState {
   const productInventory = economyResult.economy.products.reduce((total, product) => total + product.inventory, 0);
   const revenue = economyResult.revenue;
   const unitsSold = economyResult.unitsSold;
-  const demandFulfilled = unitsSold > 0 && unitsSold < synchronizedProducts[0].inventory ? unitsSold >= Math.round(unitsSold * 1.1) : unitsSold > 0;
+  const demandFulfilled = unitsSold > 0;
   const nextCustomers = business.customers.map((customer, index) => index < Math.min(unitsSold, business.customers.length) ? { ...customer, lastPurchaseDay: business.day + 1, lifetimeValue: customer.lifetimeValue + operations.price } : customer);
   const nextOperations = { ...operations, customerSatisfaction: clamp(operations.customerSatisfaction + (demandFulfilled ? 1 : -1) + (operations.quality - 50) / 100), marketingBudget: 0 };
   const nextBusiness: Business = { ...business, day: business.day + 1, revenue: business.revenue + revenue, expenses: business.expenses + fixedExpense + economyResult.procurementSpend, cash: business.cash + revenue - fixedExpense - economyResult.procurementSpend, inventory: productInventory, customers: nextCustomers, reputation: clamp(business.reputation + (demandFulfilled ? 1 : -1)), marketShare: clamp(business.marketShare + (demandFulfilled ? 0.2 : -0.1)) };
   const supplyChain = economyResult.economy.supplyChain;
-  const advanced: SimulationState = {
-    business: nextBusiness,
-    operations: nextOperations,
-    market,
-    economy: economyResult.economy,
-    agents: state.agents,
-    events: [generateEvent(nextBusiness.day, nextBusiness)],
-    log: [...state.log, `Day ${nextBusiness.day}: sold ${unitsSold} units for ₹${revenue.toLocaleString("en-IN")}; produced ${economyResult.unitsProduced}; delivered ${economyResult.unitsDelivered}; procurement ₹${economyResult.procurementSpend.toLocaleString("en-IN")}; supply-chain risk ${economyResult.supplyChainRisk}/100; inventory ${productInventory}; raw materials ${supplyChain?.rawMaterialInventory ?? 0}; ${explainMarketPosition(operations, market)}`],
-  };
-  const reacted = runAgentRound(advanced);
-  const reactionLog = reacted.agents?.lastDecisions.slice(0, 4).map((d) => `${d.agentId}: ${d.action} — ${d.rationale}`) ?? [];
-  return { ...reacted, log: [...reacted.log, ...reactionLog] };
+  const advanced: SimulationState = { business: nextBusiness, operations: nextOperations, market, economy: economyResult.economy, agents: state.agents, events: [generateEvent(nextBusiness.day, nextBusiness)], log: [...state.log, `Day ${nextBusiness.day}: sold ${unitsSold} units for ₹${revenue.toLocaleString("en-IN")}; produced ${economyResult.unitsProduced}; delivered ${economyResult.unitsDelivered}; procurement ₹${economyResult.procurementSpend.toLocaleString("en-IN")}; supply-chain risk ${economyResult.supplyChainRisk}/100; inventory ${productInventory}; raw materials ${supplyChain?.rawMaterialInventory ?? 0}; ${explainMarketPosition(operations, market)}`] };
+  return runAgentRound(advanced);
 }
 
 export function applyChoice(state: SimulationState, selected: SimulationChoice): SimulationState {
