@@ -1,4 +1,4 @@
-import type { EconomyState, Product, Supplier } from "@enterpriseverse/types";
+import type { EconomyState, LedgerEntry, Product, PurchaseOrder, Supplier } from "@enterpriseverse/types";
 import { receiveInventory, inventoryValue } from "./inventory";
 import { createPurchaseOrder, negotiateUnitCost } from "./procurement";
 import { calculateDemand, sellProduct } from "./sales";
@@ -12,22 +12,21 @@ export interface EconomyDayResult {
   unitsDelivered: number;
 }
 
-export function createEconomyState(products: Product[] = [], purchaseOrders = []): EconomyState {
+export function createEconomyState(products: Product[] = [], purchaseOrders: PurchaseOrder[] = []): EconomyState {
   return { products, purchaseOrders, sales: [], accounting: summarizeAccounting([], [], products) };
 }
 
 export function placePurchaseOrder(state: EconomyState, input: { supplier: Supplier; productId: string; quantity: number; day: number; leadDays?: number }): EconomyState {
-  const order = createPurchaseOrder({ id: `po-${state.purchaseOrders.length + 1}-d${input.day}`, ...input });
-  const cost = order.quantity * negotiateUnitCost(input.supplier, order.quantity, input.supplier.relationship);
-  const pricedOrder = { ...order, unitCost: Math.max(1, Math.round(cost / Math.max(1, order.quantity))) };
-  return { ...state, purchaseOrders: [...state.purchaseOrders, pricedOrder] };
+  const order = createPurchaseOrder({ id: `po-${state.purchaseOrders.length + 1}-d${input.day}`, supplier: input.supplier, productId: input.productId, quantity: input.quantity, orderDay: input.day, leadDays: input.leadDays });
+  const unitCost = negotiateUnitCost(input.supplier, order.quantity, input.supplier.relationship);
+  return { ...state, purchaseOrders: [...state.purchaseOrders, { ...order, unitCost }] };
 }
 
 export function advanceEconomyDay(state: EconomyState, day: number, marketDemand = 100, competitorPrice?: number): EconomyDayResult {
   let products = state.products;
   let procurementSpend = 0;
   let unitsDelivered = 0;
-  const purchaseEntries = [];
+  const purchaseEntries: LedgerEntry[] = [];
   const purchaseOrders = state.purchaseOrders.map((order) => {
     if (order.status !== "ordered" || order.deliveryDay > day) return order;
     const product = products.find((item) => item.id === order.productId);
@@ -53,14 +52,20 @@ export function advanceEconomyDay(state: EconomyState, day: number, marketDemand
       unitsSold += result.sale.quantity;
     }
   }
-  const saleEntries = sales.slice(state.sales.length).map((sale) => recordSale(sale, products.find((p) => p.id === sale.productId)?.productionCost ?? 0));
+
+  const saleEntries: LedgerEntry[] = sales.slice(state.sales.length).map((sale) => {
+    const product = state.products.find((item) => item.id === sale.productId);
+    return recordSale(sale, product?.productionCost ?? 0);
+  });
   const ledger = [...state.accounting.ledger, ...purchaseEntries, ...saleEntries];
   const accounting = summarizeAccounting(ledger, sales, products);
-  return { economy: { products, purchaseOrders, sales, accounting: { ...accounting, cashIn: accounting.cashIn, cashOut: accounting.cashOut } }, revenue, procurementSpend, unitsSold, unitsDelivered };
+  return { economy: { products, purchaseOrders, sales, accounting }, revenue, procurementSpend, unitsSold, unitsDelivered };
 }
 
 export function economySnapshot(state: EconomyState): EconomyState {
-  return { ...state, accounting: summarizeAccounting(state.accounting.ledger, state.sales, state.products), };
+  return { ...state, accounting: summarizeAccounting(state.accounting.ledger, state.sales, state.products) };
 }
 
-export function currentInventoryValue(state: EconomyState): number { return inventoryValue(state.products); }
+export function currentInventoryValue(state: EconomyState): number {
+  return inventoryValue(state.products);
+}
