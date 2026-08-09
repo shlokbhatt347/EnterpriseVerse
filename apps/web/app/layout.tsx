@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./ui-overrides.css";
 import ThemeToggle from "./theme-toggle";
 
 export const metadata: Metadata = {
