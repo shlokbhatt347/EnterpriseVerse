@@ -225,8 +225,8 @@ export function simulatePhase16Alternative(run: Phase16Run, alternative: Simulat
 
 export function recordPhase16Counterfactual(run: Phase16Run, actualDecision: SimulationChoice, alternative: SimulationChoice): Phase16Run {
   const actualScore = scoreState(applyChoice(run.state, { ...actualDecision, effects: Object.fromEntries(Object.entries(actualDecision.effects).map(([key, value]) => [key, round(value * traitMultiplier(run.founder, actualDecision))])) }));
-  const alternative = simulatePhase16Alternative(run, alternative);
-  return { ...run, counterfactuals: [...run.counterfactuals, { day: run.state.business.day, decisionId: actualDecision.id, alternativeId: alternative.state.events[0]?.id ?? alternative.state.business.id, actualScore, alternativeScore: alternative.score }].slice(-100) };
+  const alternativeResult = simulatePhase16Alternative(run, alternative);
+  return { ...run, counterfactuals: [...run.counterfactuals, { day: run.state.business.day, decisionId: actualDecision.id, alternativeId: alternative.id, actualScore, alternativeScore: alternativeResult.score }].slice(-100) };
 }
 
 export function assessPhase16Run(run: Phase16Run): Phase16RunAssessment {
