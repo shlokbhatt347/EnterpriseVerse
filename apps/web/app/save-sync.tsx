@@ -6,11 +6,11 @@ import { useAccount } from "./auth-provider";
 const SAVE_KEY = "enterpriseverse:active-business:v1";
 
 export default function SaveSync() {
-  const { mode, authReady, saveBusiness } = useAccount();
+  const { mode, authReady, cloudReady, saveBusiness } = useAccount();
   const lastSynced = useRef("");
 
   useEffect(() => {
-    if (!authReady || mode !== "email") return;
+    if (!authReady || mode !== "email" || !cloudReady) return;
     const sync = async () => {
       try {
         const raw = window.localStorage.getItem(SAVE_KEY);
@@ -24,7 +24,7 @@ export default function SaveSync() {
     void sync();
     const timer = window.setInterval(() => void sync(), 5000);
     return () => window.clearInterval(timer);
-  }, [authReady, mode, saveBusiness]);
+  }, [authReady, cloudReady, mode, saveBusiness]);
 
   return null;
 }
