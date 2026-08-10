@@ -9,17 +9,184 @@ export interface CompetitorProfile19 extends Personality19 { companyName: string
 export interface LivingMarket19 { day: number; trend: MarketTrend19; demandIndex: number; marketPrice: number; pricePressure: number; innovationDemand: number; consumerConfidence: number; supplyReliability: number; inflation: number; eventPressure: number; }
 export interface CompetitorDecision19 { competitorId: string; day: number; action: "cut_price" | "raise_quality" | "expand" | "defend_niche" | "hold"; intensity: number; expectedMarketShareDelta: number; rationale: string; }
 export interface LivingEconomyStep19 { market: LivingMarket19; competitors: CompetitorDecision19[]; playerPressure: number; replaySignature: string; }
+
 const NAMES = ["The Strategist", "The Maverick", "The Optimist", "The Guardian", "The Innovator", "The Negotiator", "The Builder", "The Disruptor", "The Minimalist", "The Visionary"];
 const AXES: PersonalityAxis19[] = ["risk", "innovation", "priceFocus", "qualityFocus", "growth", "patience", "aggression", "ethics", "adaptability", "customerFocus"];
 const STRATEGIES: CompetitorStrategy19[] = ["price", "quality", "growth", "niche"];
 const clamp = (n: number, min = 0, max = 100) => Math.max(min, Math.min(max, n));
 const round = (n: number) => Math.round(n * 100) / 100;
-function hash(input: string): number { let h = 2166136261; for (let i = 0; i < input.length; i += 1) h = Math.imul(h ^ input.charCodeAt(i), 16777619); return h >>> 0; }
-function random01(seed: number, salt: number): number { let x = (seed ^ Math.imul(salt + 1, 0x9e3779b9)) >>> 0; x ^= x << 13; x ^= x >>> 17; x ^= x << 5; return ((x >>> 0) % 1000003) / 1000003; }
-function intelligence(value: number): IntelligenceTier19 { if (value >= 90) return "elite"; if (value >= 75) return "expert"; if (value >= 58) return "smart"; if (value >= 38) return "average"; return "beginner"; }
-export function createPersonality19(seed: number, index: number): Personality19 { const traits = Object.fromEntries(AXES.map((axis, i) => [axis, Math.round(15 + random01(seed, index * 31 + i) * 85)])) as Record<PersonalityAxis19, number>; return { id: `personality-${index + 1}`, name: NAMES[index % NAMES.length], traits, riskTolerance: traits.risk >= 68 ? "high" : traits.risk <= 38 ? "low" : "medium", intelligence: intelligence(traits.adaptability), strategyBias: STRATEGIES[Math.floor(random01(seed, index * 101 + 7) * STRATEGIES.length)] }; }
-export function generatePersonalities19(seedInput: number | string, count = 100): Personality19[] { const seed = typeof seedInput === "number" ? Math.abs(Math.floor(seedInput)) >>> 0 : hash(seedInput); const safeCount = Math.max(1, Math.min(100, Math.floor(count))); return Array.from({ length: safeCount }, (_, i) => createPersonality19(seed, i)); }
-export function createCompetitorProfile19(seed: number, index: number, companyName?: string): CompetitorProfile19 { const p = createPersonality19(seed, index); return { ...p, companyName: companyName ?? `Competitor ${index + 1}`, startingCash: Math.round(15000 + random01(seed, index + 300) * 60000), startingMarketShare: round(2 + random01(seed, index + 400) * 16) }; }
-export function createCompetitorAgents19(seedInput: number | string, count = 8): CompetitorAgent[] { const seed = typeof seedInput === "number" ? Math.abs(Math.floor(seedInput)) >>> 0 : hash(seedInput); const safeCount = Math.max(1, Math.min(20, Math.floor(count))); return Array.from({ length: safeCount }, (_, i) => { const p = createCompetitorProfile19(seed, i); return { id: `competitor-${i + 1}`, name: p.companyName, role: "competitor", mood: p.traits.aggression >= 70 ? "competitive" : "neutral", riskTolerance: p.riskTolerance, goals: [p.strategyBias, p.traits.growth >= 65 ? "expand" : "protect-margin"], trust: 50, relationship: 0, memories: [], strategy: p.strategyBias, cash: p.startingCash, marketShare: p.startingMarketShare, aggression: p.traits.aggression }; }); }
-function marketTrend(demand: number): MarketTrend19 { if (demand >= 115) return "boom"; if (demand >= 103) return "growing"; if (demand <= 78) return "recession"; if (demand <= 92) return "softening"; return "stable"; }
-export function evolveLivingMarket19(input: { seed: number; day: number; previous?: LivingMarket19; competitorStrength?: number; playerReputation?: number; supplyReliability?: number }): LivingMarket19 { const previous = input.previous ?? { day: 0, trend: "stable" as MarketTrend19, demandIndex: 100, marketPrice: 100, pricePressure: 50, innovationDemand: 50, consumerConfidence: 70, supplyReliability: 80, inflation: 3, eventPressure: 20 }; const shock = (random01(input.seed, input.day * 17) - 0.5) * 12; const momentum = previous.demandIndex > 103 ? 1.4 : previous.demandIndex < 92 ? -1.4 : 0; const demandIndex = clamp(round(previous.demandIndex + shock + momentum), 55, 145); const competitorStrength = clamp(input.competitorStrength ?? 50); const reputation = clamp(input.playerReputation ?? 50); const supply = clamp(input.supplyReliability ?? previous.supplyReliability); const inflation = clamp(round(previous.inflation + (random01(input.seed, input.day * 19) - 0.45) * 0.8), 0, 15); return { day: input.day, trend: marketTrend(demandIndex), demandIndex, marketPrice: round(Math.max(1, previous.marketPrice * (1 + (inflation - 3) / 100) + shock * 0.25)), pricePressure: clamp(round(40 + competitorStrength * 0.35 + (100 - reputation) * 0.15)), innovationDemand: clamp(round(35 + demandIndex * 0.3 + random01(input.seed, input.day * 23) * 15)), consumerConfidence: clamp(round(60 + (demandIndex - 100) * 0.45 - inflation * 1.8)), supplyReliability: clamp(round(supply + (random01(input.seed, input.day * 29) - 0.5) * 6)), inflation, eventPressure: clamp(round(20 + Math.abs(shock) * 4 + (100 - supply) * 0.3)) }; }
+
+function hash(input: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < input.length; i += 1) h = Math.imul(h ^ input.charCodeAt(i), 16777619);
+  return h >>> 0;
+}
+
+function random01(seed: number, salt: number): number {
+  let x = (seed ^ Math.imul(salt + 1, 0x9e3779b9)) >>> 0;
+  x ^= x << 13;
+  x ^= x >>> 17;
+  x ^= x << 5;
+  return ((x >>> 0) % 1000003) / 1000003;
+}
+
+function intelligence(value: number): IntelligenceTier19 {
+  if (value >= 90) return "elite";
+  if (value >= 75) return "expert";
+  if (value >= 58) return "smart";
+  if (value >= 38) return "average";
+  return "beginner";
+}
+
+export function createPersonality19(seed: number, index: number): Personality19 {
+  const traits = Object.fromEntries(
+    AXES.map((axis, i) => [axis, Math.round(15 + random01(seed, index * 31 + i) * 85)]),
+  ) as Record<PersonalityAxis19, number>;
+  return {
+    id: `personality-${index + 1}`,
+    name: NAMES[index % NAMES.length],
+    traits,
+    riskTolerance: traits.risk >= 68 ? "high" : traits.risk <= 38 ? "low" : "medium",
+    intelligence: intelligence(traits.adaptability),
+    strategyBias: STRATEGIES[Math.floor(random01(seed, index * 101 + 7) * STRATEGIES.length)],
+  };
+}
+
+export function generatePersonalities19(seedInput: number | string, count = 100): Personality19[] {
+  const seed = typeof seedInput === "number" ? Math.abs(Math.floor(seedInput)) >>> 0 : hash(seedInput);
+  const safeCount = Math.max(1, Math.min(100, Math.floor(count)));
+  return Array.from({ length: safeCount }, (_, i) => createPersonality19(seed, i));
+}
+
+export function createCompetitorProfile19(seed: number, index: number, companyName?: string): CompetitorProfile19 {
+  const personality = createPersonality19(seed, index);
+  return {
+    ...personality,
+    companyName: companyName ?? `Competitor ${index + 1}`,
+    startingCash: Math.round(15000 + random01(seed, index + 300) * 60000),
+    startingMarketShare: round(2 + random01(seed, index + 400) * 16),
+  };
+}
+
+export function createCompetitorAgents19(seedInput: number | string, count = 8): CompetitorAgent[] {
+  const seed = typeof seedInput === "number" ? Math.abs(Math.floor(seedInput)) >>> 0 : hash(seedInput);
+  const safeCount = Math.max(1, Math.min(20, Math.floor(count)));
+  return Array.from({ length: safeCount }, (_, i) => {
+    const profile = createCompetitorProfile19(seed, i);
+    return {
+      id: `competitor-${i + 1}`,
+      name: profile.companyName,
+      role: "competitor",
+      mood: profile.traits.aggression >= 70 ? "competitive" : "neutral",
+      riskTolerance: profile.riskTolerance,
+      goals: [profile.strategyBias, profile.traits.growth >= 65 ? "expand" : "protect-margin"],
+      trust: 50,
+      relationship: 0,
+      memories: [],
+      strategy: profile.strategyBias,
+      cash: profile.startingCash,
+      marketShare: profile.startingMarketShare,
+      aggression: profile.traits.aggression,
+    };
+  });
+}
+
+function marketTrend(demand: number): MarketTrend19 {
+  if (demand >= 115) return "boom";
+  if (demand >= 103) return "growing";
+  if (demand <= 78) return "recession";
+  if (demand <= 92) return "softening";
+  return "stable";
+}
+
+export function evolveLivingMarket19(input: {
+  seed: number;
+  day: number;
+  previous?: LivingMarket19;
+  competitorStrength?: number;
+  playerReputation?: number;
+  supplyReliability?: number;
+}): LivingMarket19 {
+  const previous: LivingMarket19 = input.previous ?? {
+    day: 0,
+    trend: "stable",
+    demandIndex: 100,
+    marketPrice: 100,
+    pricePressure: 50,
+    innovationDemand: 50,
+    consumerConfidence: 70,
+    supplyReliability: 80,
+    inflation: 3,
+    eventPressure: 20,
+  };
+  const shock = (random01(input.seed, input.day * 17) - 0.5) * 12;
+  const momentum = previous.demandIndex > 103 ? 1.4 : previous.demandIndex < 92 ? -1.4 : 0;
+  const demandIndex = clamp(round(previous.demandIndex + shock + momentum), 55, 145);
+  const competitorStrength = clamp(input.competitorStrength ?? 50);
+  const reputation = clamp(input.playerReputation ?? 50);
+  const supply = clamp(input.supplyReliability ?? previous.supplyReliability);
+  const inflation = clamp(round(previous.inflation + (random01(input.seed, input.day * 19) - 0.45) * 0.8), 0, 15);
+  const supplyReliability = clamp(round(supply + (random01(input.seed, input.day * 29) - 0.5) * 6));
+  return {
+    day: input.day,
+    trend: marketTrend(demandIndex),
+    demandIndex,
+    marketPrice: round(Math.max(1, previous.marketPrice * (1 + (inflation - 3) / 100) + shock * 0.25)),
+    pricePressure: clamp(round(40 + competitorStrength * 0.35 + (100 - reputation) * 0.15)),
+    innovationDemand: clamp(round(35 + demandIndex * 0.3 + random01(input.seed, input.day * 23) * 15)),
+    consumerConfidence: clamp(round(60 + (demandIndex - 100) * 0.45 - inflation * 1.8)),
+    supplyReliability,
+    inflation,
+    eventPressure: clamp(round(20 + Math.abs(shock) * 4 + (100 - supply) * 0.3)),
+  };
+}
+
+function actionScores(profile: Personality19, market: LivingMarket19, state: SimulationState, memoryCount: number): Record<CompetitorDecision19["action"], number> {
+  const playerPrice = state.operations?.price ?? market.marketPrice;
+  const playerQuality = state.operations?.quality ?? 50;
+  const priceGap = clamp((playerPrice - market.marketPrice) / Math.max(1, market.marketPrice) * 100, -50, 50);
+  const learning = Math.min(12, memoryCount * 2) * profile.traits.adaptability / 100;
+  return {
+    cut_price: 35 + profile.traits.priceFocus * 0.45 + Math.max(0, priceGap) * 0.8 + market.pricePressure * 0.15 + learning,
+    raise_quality: 25 + profile.traits.qualityFocus * 0.45 + market.innovationDemand * 0.3 + playerQuality * 0.1 + learning,
+    expand: 20 + profile.traits.growth * 0.55 + market.demandIndex * 0.25 + profile.traits.risk * 0.15,
+    defend_niche: 30 + profile.traits.patience * 0.35 + profile.traits.customerFocus * 0.3 + (100 - market.demandIndex) * 0.2 + learning,
+    hold: 30 + profile.traits.patience * 0.25 + profile.traits.ethics * 0.1,
+  };
+}
+
+export function decideCompetitor19(profile: Personality19, market: LivingMarket19, state: SimulationState, memoryCount = 0, day = market.day): CompetitorDecision19 {
+  const entries = Object.entries(actionScores(profile, market, state, memoryCount)) as Array<[CompetitorDecision19["action"], number]>;
+  entries.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const [action, rawScore] = entries[0];
+  const multiplier = { beginner: 0.7, average: 0.85, smart: 1, expert: 1.1, elite: 1.2 }[profile.intelligence];
+  const intensity = clamp(round(rawScore * multiplier * (0.75 + profile.traits.aggression / 400)), 10, 100);
+  return {
+    competitorId: profile.id,
+    day,
+    action,
+    intensity,
+    expectedMarketShareDelta: round((intensity / 100) * (profile.traits.growth * 0.02 + profile.traits.aggression * 0.015)),
+    rationale: `${profile.name} favors ${action} with ${profile.intelligence} intelligence and ${profile.strategyBias} bias.`,
+  };
+}
+
+export function runLivingEconomyStep19(input: { seed: number; day: number; state: SimulationState; previousMarket?: LivingMarket19; competitors?: Personality19[] }): LivingEconomyStep19 {
+  const market = evolveLivingMarket19({
+    seed: input.seed,
+    day: input.day,
+    previous: input.previousMarket,
+    competitorStrength: input.state.market?.competitivePressure,
+    playerReputation: input.state.business.reputation,
+    supplyReliability: input.state.market?.confidence,
+  });
+  const profiles = input.competitors ?? generatePersonalities19(input.seed, 8);
+  const competitors = profiles.map((profile) => decideCompetitor19(profile, market, input.state, input.state.agents?.competitors.length ?? 0, input.day));
+  const playerPressure = round(competitors.reduce((sum, decision) => sum + decision.intensity, 0) / competitors.length);
+  return {
+    market,
+    competitors,
+    playerPressure,
+    replaySignature: `${input.seed}:${input.day}:${market.trend}:${Math.round(market.demandIndex)}:${competitors.map((d) => `${d.action}:${Math.round(d.intensity)}`).join("|")}`,
+  };
+}
