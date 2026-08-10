@@ -136,7 +136,7 @@ export function generateWorldEvent20(seed: number, day: number, market: LivingMa
     opportunity: { title: "Strategic partnership opportunity", description: "A potential partner could accelerate growth, but the opportunity requires focused execution.", effects: { opportunity: 18, executionPressure: 7 }, tags: ["opportunity", "growth"] },
   };
   const template = templates[category];
-  return { id: `world-event-${day}-${hash(`${seed}:${day}:${category}`)}`, day, category, severity(pressure), title: template.title, description: template.description, durationDays: 2 + Math.floor(random01(seed, day * 53) * 5), effects: template.effects, tags: template.tags };
+  return { id: `world-event-${day}-${hash(`${seed}:${day}:${category}`)}`, day, category, severity: severity(pressure), title: template.title, description: template.description, durationDays: 2 + Math.floor(random01(seed, day * 53) * 5), effects: template.effects, tags: template.tags };
 }
 
 export function createLivingWorld20(seedInput: number | string, competitorCount = 8): LivingWorldState20 {
@@ -163,8 +163,7 @@ function eventPressure(events: WorldEvent20[]): number {
 }
 
 export function advanceLivingWorld20(input: { state: LivingWorldState20; simulation: SimulationState; day: number; decision?: { id: string; label: string; effects?: Record<string, number> } }): LivingWorldState20 {
-  const previous = input.state.market;
-  const market = evolveLivingMarket19({ seed: input.state.seed, day: input.day, previous, competitorStrength: input.simulation.market?.competitivePressure, playerReputation: input.simulation.business.reputation, supplyReliability: input.simulation.market?.confidence });
+  const market = evolveLivingMarket19({ seed: input.state.seed, day: input.day, previous: input.state.market, competitorStrength: input.simulation.market?.competitivePressure, playerReputation: input.simulation.business.reputation, supplyReliability: input.simulation.market?.confidence });
   const event = generateWorldEvent20(input.state.seed, input.day, market);
   const retainedEvents = input.state.events.filter((item) => input.day - item.day < item.durationDays);
   const events = event ? [...retainedEvents, event] : retainedEvents;
