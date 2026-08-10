@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
+import { loadProfile, updateProfile } from "../lib/supabase-browser";
 import { useAccount } from "../auth-provider";
 import "../auth/auth-shell.css";
 
@@ -13,19 +14,13 @@ export default function AccountPage() {
 
   useEffect(() => {
     if (!authReady || mode !== "email") return;
-    fetch("/api/profile", { cache: "no-store" }).then(async (response) => {
-      if (!response.ok) return;
-      const body = await response.json() as { profile?: { display_name?: string } };
-      setDisplayName(body.profile?.display_name ?? user?.displayName ?? "Founder");
-    }).catch(() => setDisplayName(user?.displayName ?? "Founder"));
+    void loadProfile().then((profile) => setDisplayName(profile?.display_name ?? user?.displayName ?? "Founder")).catch(() => setDisplayName(user?.displayName ?? "Founder"));
   }, [authReady, mode, user]);
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setMessage(""); setError("");
-    const response = await fetch("/api/profile", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ displayName }) });
-    const body = await response.json().catch(() => ({})) as { error?: string };
-    if (!response.ok) { setError(body.error ?? "Unable to save profile."); return; }
-    setMessage("Profile saved.");
+    try { await updateProfile(displayName.trim() || "Founder"); setMessage("Profile saved."); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to save profile."); }
   }
 
   if (!authReady) return <main className="auth-page"><section className="auth-card"><p className="auth-copy">Loading account…</p></section></main>;
