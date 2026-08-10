@@ -2,40 +2,42 @@
 
 Phase 24 is the experience layer on top of the completed Phase 19–23 simulation foundation.
 
-## Goals
+## Product principles
 
-- Make the simulator immediately understandable to a first-time founder.
-- Make expert decisions feel information-rich without creating information overload.
-- Establish one reusable design language across onboarding, command centre, decisions, analytics, learning, competition and account flows.
-- Make desktop, tablet and mobile first-class experiences.
-- Preserve the canonical deterministic simulation engine and existing persistence/competition boundaries.
+1. **Attention before detail** — the interface answers what needs attention before exposing deeper analytics.
+2. **Decision clarity** — every decision communicates situation → options → trade-offs → confirmation → consequence.
+3. **Progressive disclosure** — advanced information is available without forcing beginners to process it.
+4. **One visual language** — cards, metrics, buttons, badges, fields, states and navigation use the same tokens and interaction rules.
+5. **Mobile is first-class** — touch targets and information hierarchy are designed for small screens, not merely compressed.
+6. **Accessible by default** — keyboard focus, semantic controls, reduced motion, forced colors and clear status announcements are preserved.
+7. **Simulation stays canonical** — Phase 24 changes presentation only; Phase 19–23 remain the authoritative simulation/competition/learning layers.
 
-## Delivered foundation
+## Delivered
 
-- Reusable UI primitives in `apps/web/app/ui/` for cards, badges, buttons, metric cards, status messages, skeletons and section headers.
-- Command-centre hierarchy helpers for attention-first summaries.
-- Accessible focus, reduced-motion, forced-colors and touch-target rules.
-- Consistent loading, empty, success and error presentation.
-- Responsive navigation and mobile action patterns.
-- Decision presentation remains situation → options → trade-offs → confirmation → consequence.
-
-## Non-goals
-
-Phase 24 does not replace the simulation engine, create a second persistence layer, or introduce a new authentication provider. Email/password + Guest Mode remains the account contract. Supabase remains the persistence boundary.
+- Reusable UI primitives in `apps/web/app/ui/` for cards, badges, buttons, metric cards, status messages, skeletons, empty states, fields and section headers.
+- A dedicated Phase 24 responsive experience layer.
+- Improved executive dashboard hierarchy and metric presentation.
+- Premium decision-card treatment with explicit risk and impact language.
+- Keyboard arrow-key movement between decision options.
+- Consistent selected/disabled/focus/consequence states.
+- Desktop/tablet/mobile decision layouts.
+- Reduced-motion and forced-colors support for Phase 24 interactions.
+- Light-theme support for the new decision experience.
+- Existing authentication remains **email/password + Guest Mode only**.
+- Existing Supabase persistence boundary remains unchanged.
 
 ## Release gate
 
-Before merge, run the repository's complete CI suite and verify:
+Before merge:
 
-- simulation tests
+- `pnpm test:simulation`
 - simulation typecheck
 - web typecheck
 - production web build
-- onboarding and dashboard at desktop/tablet/mobile widths
-- keyboard-only navigation
-- reduced-motion mode
-- forced-colors mode
-- decision confirmation and consequence feedback
-- account menu and auth navigation
-- learning and competition navigation
-- static GitHub Pages routing/base-path behaviour
+- verify onboarding/dashboard at desktop, tablet and mobile widths
+- verify keyboard-only decision navigation
+- verify reduced-motion mode
+- verify forced-colors mode
+- verify light/dark themes
+- verify auth/account/learning/competition navigation
+- verify GitHub Pages static routing/base-path behaviour
