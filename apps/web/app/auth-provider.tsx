@@ -2,13 +2,15 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
-type FirebaseUser = { uid: string; displayName: string | null; email: string | null; photoURL: string | null };
-type AuthMode = "loading" | "guest" | "google";
+type AccountUser = { id: string; displayName: string; email: string | null; emailConfirmed: boolean };
+type AuthMode = "loading" | "guest" | "email";
 type AccountContextValue = {
-  user: FirebaseUser | null;
+  user: AccountUser | null;
   mode: AuthMode;
-  firebaseReady: boolean;
-  signInWithGoogle: () => Promise<void>;
+  authReady: boolean;
+  signInWithEmail: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
+  signUpWithEmail: (email: string, password: string, displayName: string) => Promise<{ ok: boolean; requiresVerification?: boolean; error?: string }>;
+  requestPasswordReset: (email: string) => Promise<{ ok: boolean; error?: string }>;
   continueAsGuest: () => void;
   signOut: () => Promise<void>;
   saveBusiness: (key: string, value: unknown) => Promise<void>;
@@ -16,116 +18,91 @@ type AccountContextValue = {
   deleteBusiness: (key: string) => Promise<void>;
 };
 
-declare global { interface Window { firebase?: any } }
-
 const AccountContext = createContext<AccountContextValue | null>(null);
-const GUEST_KEY = "enterpriseverse:account:v1";
-const SAVE_KEY = "enterpriseverse:active-business:v1";
-const SYNCED_KEY = "enterpriseverse:phase15-synced-user:v1";
-const FIREBASE_VERSION = "10.14.1";
-const config = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? "",
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ?? "",
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? "",
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ?? "",
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ?? "",
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID ?? "",
-};
-export const firebaseConfigured = Object.values(config).every(Boolean);
+const GUEST_KEY = "enterpriseverse:account:v2";
 
-function loadScript(src: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const existing = document.querySelector<HTMLScriptElement>(`script[src="${src}"]`);
-    if (existing) { if (window.firebase) resolve(); else existing.addEventListener("load", () => resolve(), { once: true }); return; }
-    const script = document.createElement("script"); script.src = src; script.async = true;
-    script.onload = () => resolve(); script.onerror = () => reject(new Error("SDK load failed")); document.head.appendChild(script);
-  });
-}
-
-async function ensureFirebase(): Promise<any> {
-  if (!firebaseConfigured) throw new Error("Cloud authentication is not configured.");
-  await loadScript(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-app-compat.js`);
-  await loadScript(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-auth-compat.js`);
-  await loadScript(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-firestore-compat.js`);
-  if (!window.firebase) throw new Error("Firebase SDK failed to initialise.");
-  if (window.firebase.apps.length === 0) window.firebase.initializeApp(config);
-  return window.firebase;
-}
-
-function guestUser(): FirebaseUser {
-  try { const existing = window.localStorage.getItem(GUEST_KEY); if (existing) return JSON.parse(existing) as FirebaseUser; } catch { /* recover below */ }
-  const user: FirebaseUser = { uid: `guest_${crypto.randomUUID()}`, displayName: "Guest Founder", email: null, photoURL: null };
-  try { window.localStorage.setItem(GUEST_KEY, JSON.stringify(user)); } catch { /* storage can be unavailable */ }
+function guestUser(): AccountUser {
+  try {
+    const existing = window.localStorage.getItem(GUEST_KEY);
+    if (existing) return JSON.parse(existing) as AccountUser;
+  } catch { /* recover below */ }
+  const user: AccountUser = { id: `guest_${crypto.randomUUID()}`, displayName: "Guest Founder", email: null, emailConfirmed: false };
+  try { window.localStorage.setItem(GUEST_KEY, JSON.stringify(user)); } catch { /* local storage may be unavailable */ }
   return user;
 }
 
-const docId = (key: string) => key.replace(/[^a-zA-Z0-9_-]/g, "_");
+async function jsonRequest<T>(url: string, init?: RequestInit): Promise<{ data?: T; error?: string }> {
+  try {
+    const response = await fetch(url, { ...init, headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) }, cache: "no-store" });
+    const body = await response.json().catch(() => ({})) as T & { error?: string };
+    if (!response.ok) return { error: typeof body.error === "string" ? body.error : "Request failed." };
+    return { data: body };
+  } catch { return { error: "Network error. Please try again." }; }
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [user, setUser] = useState<AccountUser | null>(null);
   const [mode, setMode] = useState<AuthMode>("loading");
-  const [firebaseReady, setFirebaseReady] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
 
-  useEffect(() => {
-    let active = true; let unsubscribe: (() => void) | undefined;
-    (async () => {
-      if (!firebaseConfigured) { if (active) { setUser(guestUser()); setMode("guest"); } return; }
-      try {
-        const firebase = await ensureFirebase(); if (!active) return; setFirebaseReady(true);
-        unsubscribe = firebase.auth().onAuthStateChanged((nextUser: FirebaseUser | null) => { if (active) { setUser(nextUser); setMode(nextUser ? "google" : "guest"); } });
-      } catch { if (active) { setUser(guestUser()); setMode("guest"); } }
-    })();
-    return () => { active = false; unsubscribe?.(); };
+  const refresh = useCallback(async () => {
+    const result = await jsonRequest<{ authenticated: boolean; user: AccountUser | null }>("/api/auth/session");
+    if (result.data?.authenticated && result.data.user) {
+      setUser(result.data.user); setMode("email");
+    } else {
+      setUser(guestUser()); setMode("guest");
+    }
+    setAuthReady(true);
   }, []);
 
-  useEffect(() => {
-    if (mode !== "google" || !user || !firebaseReady || !window.firebase) return;
-    let active = true;
-    (async () => {
-      try {
-        const db = window.firebase.firestore();
-        const ref = db.collection("users").doc(user.uid).collection("businesses").doc(docId(SAVE_KEY));
-        const cloud = await ref.get();
-        const localRaw = window.localStorage.getItem(SAVE_KEY);
-        if (cloud.exists) {
-          const value = (cloud.data() as { value?: unknown }).value;
-          if (value && active) {
-            window.localStorage.setItem(SAVE_KEY, JSON.stringify(value));
-            const synced = window.localStorage.getItem(SYNCED_KEY);
-            if (synced !== user.uid) { window.localStorage.setItem(SYNCED_KEY, user.uid); window.location.reload(); }
-          }
-        } else if (localRaw) {
-          await ref.set({ value: JSON.parse(localRaw), updatedAt: new Date().toISOString() }, { merge: true });
-          if (active) window.localStorage.setItem(SYNCED_KEY, user.uid);
-        }
-      } catch { /* local save remains authoritative while offline */ }
-    })();
-    return () => { active = false; };
-  }, [firebaseReady, mode, user]);
+  useEffect(() => { void refresh(); }, [refresh]);
+
+  const signInWithEmail = useCallback(async (email: string, password: string) => {
+    const result = await jsonRequest<{ user: AccountUser }>("/api/auth/signin", { method: "POST", body: JSON.stringify({ email, password }) });
+    if (result.error || !result.data?.user) return { ok: false, error: result.error ?? "Unable to sign in." };
+    setUser(result.data.user); setMode("email");
+    return { ok: true };
+  }, []);
+
+  const signUpWithEmail = useCallback(async (email: string, password: string, displayName: string) => {
+    const result = await jsonRequest<{ user: AccountUser | null; requiresVerification: boolean }>("/api/auth/signup", { method: "POST", body: JSON.stringify({ email, password, displayName }) });
+    if (result.error) return { ok: false, error: result.error };
+    if (result.data?.user) { setUser(result.data.user); setMode("email"); }
+    return { ok: true, requiresVerification: result.data?.requiresVerification ?? true };
+  }, []);
+
+  const requestPasswordReset = useCallback(async (email: string) => {
+    const result = await jsonRequest("/api/auth/recover", { method: "POST", body: JSON.stringify({ email }) });
+    return result.error ? { ok: false, error: result.error } : { ok: true };
+  }, []);
 
   const continueAsGuest = useCallback(() => { setUser(guestUser()); setMode("guest"); }, []);
-  const signInWithGoogle = useCallback(async () => { const firebase = await ensureFirebase(); setFirebaseReady(true); await firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()); }, []);
-  const signOut = useCallback(async () => { if (firebaseReady && window.firebase) await window.firebase.auth().signOut(); setUser(guestUser()); setMode("guest"); }, [firebaseReady]);
+
+  const signOut = useCallback(async () => {
+    await jsonRequest("/api/auth/signout", { method: "POST" });
+    setUser(guestUser()); setMode("guest");
+  }, []);
 
   const saveBusiness = useCallback(async (key: string, value: unknown) => {
-    try { window.localStorage.setItem(key, JSON.stringify(value)); } catch { /* cloud fallback */ }
-    if (mode !== "google" || !user || !firebaseReady || !window.firebase) return;
-    await window.firebase.firestore().collection("users").doc(user.uid).collection("businesses").doc(docId(key)).set({ value, updatedAt: new Date().toISOString() }, { merge: true });
-  }, [firebaseReady, mode, user]);
+    try { window.localStorage.setItem(key, JSON.stringify(value)); } catch { /* cloud remains available */ }
+    if (mode !== "email") return;
+    await jsonRequest("/api/saves", { method: "PUT", body: JSON.stringify({ key, payload: value }) });
+  }, [mode]);
 
   const loadBusiness = useCallback(async <T,>(key: string): Promise<T | null> => {
-    if (mode === "google" && user && firebaseReady && window.firebase) {
-      try { const snap = await window.firebase.firestore().collection("users").doc(user.uid).collection("businesses").doc(docId(key)).get(); if (snap.exists) return (snap.data() as { value: T }).value; } catch { /* offline fallback */ }
+    if (mode === "email") {
+      const result = await jsonRequest<{ save: { payload: T } | null }>(`/api/saves?key=${encodeURIComponent(key)}`);
+      if (result.data?.save) return result.data.save.payload;
     }
     try { const raw = window.localStorage.getItem(key); return raw ? JSON.parse(raw) as T : null; } catch { return null; }
-  }, [firebaseReady, mode, user]);
+  }, [mode]);
 
   const deleteBusiness = useCallback(async (key: string) => {
     try { window.localStorage.removeItem(key); } catch { /* ignore */ }
-    if (mode === "google" && user && firebaseReady && window.firebase) await window.firebase.firestore().collection("users").doc(user.uid).collection("businesses").doc(docId(key)).delete();
-  }, [firebaseReady, mode, user]);
+    if (mode === "email") await jsonRequest(`/api/saves?key=${encodeURIComponent(key)}`, { method: "DELETE" });
+  }, [mode]);
 
-  const value = useMemo(() => ({ user, mode, firebaseReady, signInWithGoogle, continueAsGuest, signOut, saveBusiness, loadBusiness, deleteBusiness }), [user, mode, firebaseReady, signInWithGoogle, continueAsGuest, signOut, saveBusiness, loadBusiness, deleteBusiness]);
+  const value = useMemo(() => ({ user, mode, authReady, signInWithEmail, signUpWithEmail, requestPasswordReset, continueAsGuest, signOut, saveBusiness, loadBusiness, deleteBusiness }), [user, mode, authReady, signInWithEmail, signUpWithEmail, requestPasswordReset, continueAsGuest, signOut, saveBusiness, loadBusiness, deleteBusiness]);
   return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>;
 }
 
