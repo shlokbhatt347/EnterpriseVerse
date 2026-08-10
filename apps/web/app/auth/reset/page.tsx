@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { getCurrentUser, restoreSessionFromUrl, supabaseConfigured, updatePassword } from "../../lib/supabase-browser";
 import "../auth-shell.css";
 
 export default function ResetPasswordPage() {
@@ -14,25 +15,16 @@ export default function ResetPasswordPage() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-    const accessToken = hash.get("access_token");
-    const refreshToken = hash.get("refresh_token");
-    const expiresIn = Number(hash.get("expires_in") ?? "3600");
-    if (!accessToken || !refreshToken) { setError("This reset link is invalid or has expired. Request a new link."); return; }
-    fetch("/api/auth/set-session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accessToken, refreshToken, expiresIn }) })
-      .then(async (response) => { if (!response.ok) throw new Error("Unable to establish reset session."); window.history.replaceState({}, document.title, "/auth/reset"); setReady(true); })
-      .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Unable to establish reset session."));
+    if (!supabaseConfigured) { setError("Supabase is not configured for this deployment."); return; }
+    void restoreSessionFromUrl().then(async () => { if (!await getCurrentUser()) throw new Error("This reset link is invalid or has expired. Request a new link."); window.history.replaceState({}, document.title, "/auth/reset"); setReady(true); }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Unable to establish reset session."));
   }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError(""); setMessage("");
     if (password.length < 8) { setError("Password must be at least 8 characters."); return; }
     if (password !== confirm) { setError("Passwords do not match."); return; }
-    const response = await fetch("/api/auth/update-password", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password }) });
-    const body = await response.json().catch(() => ({})) as { error?: string };
-    if (!response.ok) { setError(body.error ?? "Unable to update password."); return; }
-    setMessage("Password updated. You can now sign in with your new password.");
-    window.setTimeout(() => router.push("/auth/signin"), 900);
+    try { await updatePassword(password); setMessage("Password updated. You can now sign in with your new password."); window.setTimeout(() => router.push("/auth/signin"), 900); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to update password."); }
   }
 
   return <main className="auth-page"><section className="auth-card" aria-labelledby="reset-title">
