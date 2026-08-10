@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAccount } from "../auth-provider";
+import { useAccount } from "../../auth-provider";
 import "../auth-shell.css";
 
 export default function SignInPage() {
