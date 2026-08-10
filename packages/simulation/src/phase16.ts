@@ -238,9 +238,14 @@ export function assessPhase16Run(run: Phase16Run): Phase16RunAssessment {
   const resilience = clamp((state.market?.confidence ?? 50) * 0.35 + (state.agents?.suppliers.reduce((sum, supplier) => sum + supplier.reliability, 0) ?? 0) / Math.max(1, state.agents?.suppliers.length ?? 1) * 0.35 + (state.financials?.runwayDays ?? 0) * 0.3);
   const learning = clamp(50 + run.decisions.length * 2 + run.counterfactuals.length * 4);
   const score = round(financial * 0.2 + customers * 0.15 + operations * 0.15 + strategy * 0.2 + resilience * 0.15 + learning * 0.15);
-  const strengths = [
-    ["Financial discipline", financial], ["Customer thinking", customers], ["Operational execution", operations], ["Strategic positioning", strategy], ["Resilience", resilience],
-  ].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([label]) => label);
+  const strengthCandidates: Array<[string, number]> = [
+    ["Financial discipline", financial],
+    ["Customer thinking", customers],
+    ["Operational execution", operations],
+    ["Strategic positioning", strategy],
+    ["Resilience", resilience],
+  ];
+  const strengths = strengthCandidates.sort((a, b) => b[1] - a[1]).slice(0, 3).map(([label]) => label);
   const lessons = [
     financial < 50 ? "Protect cash before chasing growth." : "Your cash discipline is supporting strategic flexibility.",
     customers < 50 ? "Customer retention and value should guide the next decision." : "Customer outcomes are translating into stronger business health.",
