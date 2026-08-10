@@ -22,6 +22,7 @@ export default function AccountMenu() {
           <Link className="account-action primary" href="/auth/signin" onClick={() => setOpen(false)}>Sign in / create account</Link>
           <Link className="account-action" href="/auth/signup" onClick={() => setOpen(false)}>Create free account</Link>
         </> : <>
+          <Link className="account-action primary" href="/competition" onClick={() => setOpen(false)}>Play with friends</Link>
           <Link className="account-action" href="/account" onClick={() => setOpen(false)}>Account settings</Link>
           <button type="button" className="account-action" onClick={async () => { await signOut(); setOpen(false); }}>Sign out</button>
         </>}
