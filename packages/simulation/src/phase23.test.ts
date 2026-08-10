@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createPhase23Debrief, createSkillProfile23, evaluatePhase23Decision, generatePhase23Challenge, getPhase23Scenarios, phase23Signature, recordPhase23Learning } from "./phase23";
+import { createPhase23Debrief, createSkillProfile23, evaluatePhase23Decision, generatePhase23Challenge, getPhase23Scenarios, phase23Signature, recordPhase23Learning, type LearningRecord23 } from "./phase23";
 
 describe("Phase 23 — advanced simulation, adaptive learning and education", () => {
   it("exposes a meaningful scenario library with complete choices", () => {
@@ -17,7 +17,7 @@ describe("Phase 23 — advanced simulation, adaptive learning and education", ()
 
   it("learns from decision quality without leaving bounds", () => {
     const scenario = getPhase23Scenarios()[0];
-    let history = [];
+    let history: LearningRecord23[] = [];
     const profile = createSkillProfile23();
     const evaluation = evaluatePhase23Decision(scenario, "stage", profile, { cash: 30000, reputation: 70, marketPressure: 50 });
     history = recordPhase23Learning(history, evaluation, 1, scenario.category, scenario.skills);
@@ -30,7 +30,7 @@ describe("Phase 23 — advanced simulation, adaptive learning and education", ()
 
   it("adapts the next challenge toward weak skills after poor decisions", () => {
     const scenario = getPhase23Scenarios().find((s) => s.id === "price-war-23")!;
-    const weakRecord = { scenarioId: scenario.id, day: 1, category: scenario.category, skills: ["finance", "risk"], score: 30, quality: "dangerous" as const, lesson: scenario.lesson };
+    const weakRecord: LearningRecord23 = { scenarioId: scenario.id, day: 1, category: scenario.category, skills: ["finance", "risk"], score: 30, quality: "dangerous", lesson: scenario.lesson };
     const profile = createSkillProfile23([weakRecord]);
     const challenge = generatePhase23Challenge(123, profile, [weakRecord]);
     expect(challenge.reason).toBe("recent_failure");
