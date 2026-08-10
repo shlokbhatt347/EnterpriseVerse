@@ -74,8 +74,9 @@ export async function startRoom(roomId: string) {
 }
 
 export async function submitDecision(roomId: string, round: number, decisionId: string) {
-  const current = requireSession();
-  await rest("/rest/v1/competition_submissions", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ room_id: roomId, user_id: current.user.id, round, decision_id: decisionId }) });
+  const result = await rest<{ submitted: number; players: number; round_resolved: boolean; completed: boolean; current_round: number }>("/rest/v1/rpc/phase22_submit_decision", { method: "POST", body: JSON.stringify({ p_room_id: roomId, p_round: round, p_decision_id: decisionId }) });
+  if (!result) throw new Error("The competition server did not confirm your decision.");
+  return result;
 }
 
 export async function listFriends() {
