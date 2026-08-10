@@ -18,11 +18,12 @@ export default function AccountMenu() {
       </button>
       {open && <div className="account-popover" role="menu">
         <div className="account-heading"><strong>{user.displayName}</strong><span>{user.email ?? "Progress is saved locally on this device."}</span></div>
+        <Link className="account-action primary" href="/learning" onClick={() => setOpen(false)}>Train founder skills</Link>
         {mode === "guest" ? <>
-          <Link className="account-action primary" href="/auth/signin" onClick={() => setOpen(false)}>Sign in / create account</Link>
+          <Link className="account-action" href="/auth/signin" onClick={() => setOpen(false)}>Sign in / create account</Link>
           <Link className="account-action" href="/auth/signup" onClick={() => setOpen(false)}>Create free account</Link>
         </> : <>
-          <Link className="account-action primary" href="/competition" onClick={() => setOpen(false)}>Play with friends</Link>
+          <Link className="account-action" href="/competition" onClick={() => setOpen(false)}>Play with friends</Link>
           <Link className="account-action" href="/account" onClick={() => setOpen(false)}>Account settings</Link>
           <button type="button" className="account-action" onClick={async () => { await signOut(); setOpen(false); }}>Sign out</button>
         </>}
