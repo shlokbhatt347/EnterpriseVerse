@@ -10,6 +10,7 @@ type AccountContextValue = { user: AccountUser | null; mode: AuthMode; authReady
 const AccountContext = createContext<AccountContextValue | null>(null);
 const GUEST_KEY = "enterpriseverse:account:v2";
 const ACTIVE_SAVE_KEY = "enterpriseverse:active-business:v1";
+const detachedSaveKey = (userId: string) => `enterpriseverse:detached-save:${userId}`;
 
 function guestUser(): AccountUser {
   try { const raw = window.localStorage.getItem(GUEST_KEY); if (raw) return JSON.parse(raw) as AccountUser; } catch { /* recover below */ }
@@ -37,16 +38,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { void refresh(); }, [refresh]);
 
   useEffect(() => {
-    if (!authReady || mode !== "email") return;
+    if (!authReady || mode !== "email" || !user?.id) return;
     let active = true;
     setCloudReady(false);
     (async () => {
+      const backupKey = detachedSaveKey(user.id);
       try {
         const cloud = await loadCloudSave<unknown>(ACTIVE_SAVE_KEY);
         if (!active) return;
         const localRaw = window.localStorage.getItem(ACTIVE_SAVE_KEY);
-        if (cloud !== null) window.localStorage.setItem(ACTIVE_SAVE_KEY, JSON.stringify(cloud));
-        else if (localRaw) await saveCloudSave(ACTIVE_SAVE_KEY, JSON.parse(localRaw) as unknown);
+        const backupRaw = window.localStorage.getItem(backupKey);
+        if (cloud !== null) {
+          window.localStorage.setItem(ACTIVE_SAVE_KEY, JSON.stringify(cloud));
+          window.localStorage.removeItem(backupKey);
+        } else if (backupRaw && !localRaw) {
+          window.localStorage.setItem(ACTIVE_SAVE_KEY, backupRaw);
+          await saveCloudSave(ACTIVE_SAVE_KEY, JSON.parse(backupRaw) as unknown);
+          window.localStorage.removeItem(backupKey);
+        } else if (localRaw) {
+          await saveCloudSave(ACTIVE_SAVE_KEY, JSON.parse(localRaw) as unknown);
+        }
       } catch { /* local-first gameplay survives cloud/network failures */ }
       if (active) setCloudReady(true);
     })();
@@ -59,8 +70,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signUpWithEmail = useCallback(async (email: string, password: string, displayName: string) => {
-    try { const result = await supabaseSignUp(email.trim().toLowerCase(), password, displayName.trim()); if (result.user) { setUser(accountUser(result.user) as AccountUser); setMode("email"); setCloudReady(false); } return { ok: true, requiresVerification: result.requiresVerification }; }
-    catch (error) { return { ok: false, error: error instanceof Error ? error.message : "Unable to create your account." }; }
+    try {
+      const result = await supabaseSignUp(email.trim().toLowerCase(), password, displayName.trim());
+      if (result.requiresVerification) {
+        setCloudReady(false);
+        setUser(guestUser());
+        setMode("guest");
+        return { ok: true, requiresVerification: true };
+      }
+      if (!result.user) return { ok: false, error: "Account was created but no active session was returned. Please sign in." };
+      setUser(accountUser(result.user) as AccountUser);
+      setMode("email");
+      setCloudReady(false);
+      return { ok: true, requiresVerification: false };
+    } catch (error) { return { ok: false, error: error instanceof Error ? error.message : "Unable to create your account." }; }
   }, []);
 
   const requestPasswordReset = useCallback(async (email: string) => {
@@ -70,7 +93,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const continueAsGuest = useCallback(() => { setCloudReady(false); setUser(guestUser()); setMode("guest"); }, []);
 
-  const signOut = useCallback(async () => { try { await supabaseSignOut(); } finally { setCloudReady(false); setUser(guestUser()); setMode("guest"); } }, []);
+  const signOut = useCallback(async () => {
+    const currentUserId = user?.id;
+    if (mode === "email" && currentUserId) {
+      try {
+        const raw = window.localStorage.getItem(ACTIVE_SAVE_KEY);
+        if (raw) window.localStorage.setItem(detachedSaveKey(currentUserId), raw);
+        window.localStorage.removeItem(ACTIVE_SAVE_KEY);
+      } catch { /* cloud data remains the source of truth */ }
+    }
+    try { await supabaseSignOut(); } finally { setCloudReady(false); setUser(guestUser()); setMode("guest"); }
+  }, [mode, user?.id]);
 
   const saveBusiness = useCallback(async (key: string, value: unknown) => {
     try { window.localStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore local storage failure */ }

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useAccount } from "./auth-provider";
 
@@ -18,10 +19,10 @@ export default function AccountMenu() {
       {open && <div className="account-popover" role="menu">
         <div className="account-heading"><strong>{user.displayName}</strong><span>{user.email ?? "Progress is saved locally on this device."}</span></div>
         {mode === "guest" ? <>
-          <a className="account-action primary" href="/auth/signin" onClick={() => setOpen(false)}>Sign in / create account</a>
-          <a className="account-action" href="/auth/signup" onClick={() => setOpen(false)}>Create free account</a>
+          <Link className="account-action primary" href="/auth/signin" onClick={() => setOpen(false)}>Sign in / create account</Link>
+          <Link className="account-action" href="/auth/signup" onClick={() => setOpen(false)}>Create free account</Link>
         </> : <>
-          <a className="account-action" href="/account" onClick={() => setOpen(false)}>Account settings</a>
+          <Link className="account-action" href="/account" onClick={() => setOpen(false)}>Account settings</Link>
           <button type="button" className="account-action" onClick={async () => { await signOut(); setOpen(false); }}>Sign out</button>
         </>}
       </div>}

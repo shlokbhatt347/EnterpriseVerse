@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import "./ui-overrides.css";
 import "./phase12-experience.css";
@@ -11,6 +11,9 @@ import { AuthProvider } from "./auth-provider";
 export const metadata: Metadata = {
   title: "EnterpriseVerse — Interactive Enterprise Simulator",
   description: "Run a business. Make decisions. Learn by building.",
+};
+
+export const viewport: Viewport = {
   themeColor: "#070b14",
 };
 

@@ -16,7 +16,12 @@ export default function ResetPasswordPage() {
 
   useEffect(() => {
     if (!supabaseConfigured) { setError("Supabase is not configured for this deployment."); return; }
-    void restoreSessionFromUrl().then(async () => { if (!await getCurrentUser()) throw new Error("This reset link is invalid or has expired. Request a new link."); window.history.replaceState({}, document.title, "/auth/reset"); setReady(true); }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Unable to establish reset session."));
+    void restoreSessionFromUrl().then(async () => {
+      if (!await getCurrentUser()) throw new Error("This reset link is invalid or has expired. Request a new link.");
+      const resetPath = `${window.location.pathname}${window.location.search}`;
+      window.history.replaceState({}, document.title, resetPath);
+      setReady(true);
+    }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Unable to establish reset session."));
   }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
