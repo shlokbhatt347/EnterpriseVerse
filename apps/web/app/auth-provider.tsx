@@ -1,131 +1,90 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { getCurrentUser, loadCloudSave, requestPasswordReset as supabaseRequestPasswordReset, restoreSessionFromUrl, saveCloudSave, deleteCloudSave, signInWithEmail as supabaseSignIn, signOut as supabaseSignOut, signUpWithEmail as supabaseSignUp, supabaseConfigured } from "./lib/supabase-browser";
 
-type FirebaseUser = { uid: string; displayName: string | null; email: string | null; photoURL: string | null };
-type AuthMode = "loading" | "guest" | "google";
-type AccountContextValue = {
-  user: FirebaseUser | null;
-  mode: AuthMode;
-  firebaseReady: boolean;
-  signInWithGoogle: () => Promise<void>;
-  continueAsGuest: () => void;
-  signOut: () => Promise<void>;
-  saveBusiness: (key: string, value: unknown) => Promise<void>;
-  loadBusiness: <T>(key: string) => Promise<T | null>;
-  deleteBusiness: (key: string) => Promise<void>;
-};
-
-declare global { interface Window { firebase?: any } }
+type AccountUser = { id: string; displayName: string; email: string | null; emailConfirmed: boolean };
+type AuthMode = "loading" | "guest" | "email";
+type AccountContextValue = { user: AccountUser | null; mode: AuthMode; authReady: boolean; cloudReady: boolean; signInWithEmail: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>; signUpWithEmail: (email: string, password: string, displayName: string) => Promise<{ ok: boolean; requiresVerification?: boolean; error?: string }>; requestPasswordReset: (email: string) => Promise<{ ok: boolean; error?: string }>; continueAsGuest: () => void; signOut: () => Promise<void>; saveBusiness: (key: string, value: unknown) => Promise<void>; loadBusiness: <T>(key: string) => Promise<T | null>; deleteBusiness: (key: string) => Promise<void> };
 
 const AccountContext = createContext<AccountContextValue | null>(null);
-const GUEST_KEY = "enterpriseverse:account:v1";
-const SAVE_KEY = "enterpriseverse:active-business:v1";
-const SYNCED_KEY = "enterpriseverse:phase15-synced-user:v1";
-const FIREBASE_VERSION = "10.14.1";
-const config = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? "",
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ?? "",
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? "",
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ?? "",
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ?? "",
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID ?? "",
-};
-export const firebaseConfigured = Object.values(config).every(Boolean);
+const GUEST_KEY = "enterpriseverse:account:v2";
+const ACTIVE_SAVE_KEY = "enterpriseverse:active-business:v1";
 
-function loadScript(src: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const existing = document.querySelector<HTMLScriptElement>(`script[src="${src}"]`);
-    if (existing) { if (window.firebase) resolve(); else existing.addEventListener("load", () => resolve(), { once: true }); return; }
-    const script = document.createElement("script"); script.src = src; script.async = true;
-    script.onload = () => resolve(); script.onerror = () => reject(new Error("SDK load failed")); document.head.appendChild(script);
-  });
-}
-
-async function ensureFirebase(): Promise<any> {
-  if (!firebaseConfigured) throw new Error("Cloud authentication is not configured.");
-  await loadScript(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-app-compat.js`);
-  await loadScript(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-auth-compat.js`);
-  await loadScript(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-firestore-compat.js`);
-  if (!window.firebase) throw new Error("Firebase SDK failed to initialise.");
-  if (window.firebase.apps.length === 0) window.firebase.initializeApp(config);
-  return window.firebase;
-}
-
-function guestUser(): FirebaseUser {
-  try { const existing = window.localStorage.getItem(GUEST_KEY); if (existing) return JSON.parse(existing) as FirebaseUser; } catch { /* recover below */ }
-  const user: FirebaseUser = { uid: `guest_${crypto.randomUUID()}`, displayName: "Guest Founder", email: null, photoURL: null };
-  try { window.localStorage.setItem(GUEST_KEY, JSON.stringify(user)); } catch { /* storage can be unavailable */ }
+function guestUser(): AccountUser {
+  try { const raw = window.localStorage.getItem(GUEST_KEY); if (raw) return JSON.parse(raw) as AccountUser; } catch { /* recover below */ }
+  const user: AccountUser = { id: `guest_${crypto.randomUUID()}`, displayName: "Guest Founder", email: null, emailConfirmed: false };
+  try { window.localStorage.setItem(GUEST_KEY, JSON.stringify(user)); } catch { /* storage unavailable */ }
   return user;
 }
 
-const docId = (key: string) => key.replace(/[^a-zA-Z0-9_-]/g, "_");
+function accountUser(value: Awaited<ReturnType<typeof getCurrentUser>>): AccountUser | null {
+  return value ? { id: value.id, displayName: value.displayName, email: value.email, emailConfirmed: value.emailConfirmed } : null;
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [user, setUser] = useState<AccountUser | null>(null);
   const [mode, setMode] = useState<AuthMode>("loading");
-  const [firebaseReady, setFirebaseReady] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
+  const [cloudReady, setCloudReady] = useState(false);
 
-  useEffect(() => {
-    let active = true; let unsubscribe: (() => void) | undefined;
-    (async () => {
-      if (!firebaseConfigured) { if (active) { setUser(guestUser()); setMode("guest"); } return; }
-      try {
-        const firebase = await ensureFirebase(); if (!active) return; setFirebaseReady(true);
-        unsubscribe = firebase.auth().onAuthStateChanged((nextUser: FirebaseUser | null) => { if (active) { setUser(nextUser); setMode(nextUser ? "google" : "guest"); } });
-      } catch { if (active) { setUser(guestUser()); setMode("guest"); } }
-    })();
-    return () => { active = false; unsubscribe?.(); };
+  const refresh = useCallback(async () => {
+    if (!supabaseConfigured) { setUser(guestUser()); setMode("guest"); setCloudReady(false); setAuthReady(true); return; }
+    try { await restoreSessionFromUrl(); const next = accountUser(await getCurrentUser()); setUser(next ?? guestUser()); setMode(next ? "email" : "guest"); } catch { setUser(guestUser()); setMode("guest"); setCloudReady(false); }
+    setAuthReady(true);
   }, []);
 
+  useEffect(() => { void refresh(); }, [refresh]);
+
   useEffect(() => {
-    if (mode !== "google" || !user || !firebaseReady || !window.firebase) return;
+    if (!authReady || mode !== "email") return;
     let active = true;
+    setCloudReady(false);
     (async () => {
       try {
-        const db = window.firebase.firestore();
-        const ref = db.collection("users").doc(user.uid).collection("businesses").doc(docId(SAVE_KEY));
-        const cloud = await ref.get();
-        const localRaw = window.localStorage.getItem(SAVE_KEY);
-        if (cloud.exists) {
-          const value = (cloud.data() as { value?: unknown }).value;
-          if (value && active) {
-            window.localStorage.setItem(SAVE_KEY, JSON.stringify(value));
-            const synced = window.localStorage.getItem(SYNCED_KEY);
-            if (synced !== user.uid) { window.localStorage.setItem(SYNCED_KEY, user.uid); window.location.reload(); }
-          }
-        } else if (localRaw) {
-          await ref.set({ value: JSON.parse(localRaw), updatedAt: new Date().toISOString() }, { merge: true });
-          if (active) window.localStorage.setItem(SYNCED_KEY, user.uid);
-        }
-      } catch { /* local save remains authoritative while offline */ }
+        const cloud = await loadCloudSave<unknown>(ACTIVE_SAVE_KEY);
+        if (!active) return;
+        const localRaw = window.localStorage.getItem(ACTIVE_SAVE_KEY);
+        if (cloud !== null) window.localStorage.setItem(ACTIVE_SAVE_KEY, JSON.stringify(cloud));
+        else if (localRaw) await saveCloudSave(ACTIVE_SAVE_KEY, JSON.parse(localRaw) as unknown);
+      } catch { /* local-first gameplay survives cloud/network failures */ }
+      if (active) setCloudReady(true);
     })();
     return () => { active = false; };
-  }, [firebaseReady, mode, user]);
+  }, [authReady, mode, user?.id]);
 
-  const continueAsGuest = useCallback(() => { setUser(guestUser()); setMode("guest"); }, []);
-  const signInWithGoogle = useCallback(async () => { const firebase = await ensureFirebase(); setFirebaseReady(true); await firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()); }, []);
-  const signOut = useCallback(async () => { if (firebaseReady && window.firebase) await window.firebase.auth().signOut(); setUser(guestUser()); setMode("guest"); }, [firebaseReady]);
+  const signInWithEmail = useCallback(async (email: string, password: string) => {
+    try { const next = accountUser(await supabaseSignIn(email.trim().toLowerCase(), password)); if (!next) return { ok: false, error: "Unable to sign in." }; setUser(next); setMode("email"); setCloudReady(false); return { ok: true }; }
+    catch (error) { return { ok: false, error: error instanceof Error ? error.message : "Unable to sign in." }; }
+  }, []);
+
+  const signUpWithEmail = useCallback(async (email: string, password: string, displayName: string) => {
+    try { const result = await supabaseSignUp(email.trim().toLowerCase(), password, displayName.trim()); if (result.user) { setUser(accountUser(result.user) as AccountUser); setMode("email"); setCloudReady(false); } return { ok: true, requiresVerification: result.requiresVerification }; }
+    catch (error) { return { ok: false, error: error instanceof Error ? error.message : "Unable to create your account." }; }
+  }, []);
+
+  const requestPasswordReset = useCallback(async (email: string) => {
+    try { await supabaseRequestPasswordReset(email.trim().toLowerCase()); return { ok: true }; }
+    catch (error) { return { ok: false, error: error instanceof Error ? error.message : "Unable to send the reset email." }; }
+  }, []);
+
+  const continueAsGuest = useCallback(() => { setCloudReady(false); setUser(guestUser()); setMode("guest"); }, []);
+
+  const signOut = useCallback(async () => { try { await supabaseSignOut(); } finally { setCloudReady(false); setUser(guestUser()); setMode("guest"); } }, []);
 
   const saveBusiness = useCallback(async (key: string, value: unknown) => {
-    try { window.localStorage.setItem(key, JSON.stringify(value)); } catch { /* cloud fallback */ }
-    if (mode !== "google" || !user || !firebaseReady || !window.firebase) return;
-    await window.firebase.firestore().collection("users").doc(user.uid).collection("businesses").doc(docId(key)).set({ value, updatedAt: new Date().toISOString() }, { merge: true });
-  }, [firebaseReady, mode, user]);
+    try { window.localStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore local storage failure */ }
+    if (mode === "email" && cloudReady) await saveCloudSave(key, value);
+  }, [cloudReady, mode]);
 
   const loadBusiness = useCallback(async <T,>(key: string): Promise<T | null> => {
-    if (mode === "google" && user && firebaseReady && window.firebase) {
-      try { const snap = await window.firebase.firestore().collection("users").doc(user.uid).collection("businesses").doc(docId(key)).get(); if (snap.exists) return (snap.data() as { value: T }).value; } catch { /* offline fallback */ }
-    }
+    if (mode === "email" && cloudReady) { try { const cloud = await loadCloudSave<T>(key); if (cloud !== null) return cloud; } catch { /* fall through to local save */ } }
     try { const raw = window.localStorage.getItem(key); return raw ? JSON.parse(raw) as T : null; } catch { return null; }
-  }, [firebaseReady, mode, user]);
+  }, [cloudReady, mode]);
 
-  const deleteBusiness = useCallback(async (key: string) => {
-    try { window.localStorage.removeItem(key); } catch { /* ignore */ }
-    if (mode === "google" && user && firebaseReady && window.firebase) await window.firebase.firestore().collection("users").doc(user.uid).collection("businesses").doc(docId(key)).delete();
-  }, [firebaseReady, mode, user]);
+  const deleteBusiness = useCallback(async (key: string) => { try { window.localStorage.removeItem(key); } catch { /* ignore */ } if (mode === "email" && cloudReady) { try { await deleteCloudSave(key); } catch { /* local state already deleted */ } } }, [cloudReady, mode]);
 
-  const value = useMemo(() => ({ user, mode, firebaseReady, signInWithGoogle, continueAsGuest, signOut, saveBusiness, loadBusiness, deleteBusiness }), [user, mode, firebaseReady, signInWithGoogle, continueAsGuest, signOut, saveBusiness, loadBusiness, deleteBusiness]);
+  const value = useMemo(() => ({ user, mode, authReady, cloudReady, signInWithEmail, signUpWithEmail, requestPasswordReset, continueAsGuest, signOut, saveBusiness, loadBusiness, deleteBusiness }), [user, mode, authReady, cloudReady, signInWithEmail, signUpWithEmail, requestPasswordReset, continueAsGuest, signOut, saveBusiness, loadBusiness, deleteBusiness]);
   return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>;
 }
 

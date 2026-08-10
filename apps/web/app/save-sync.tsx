@@ -6,26 +6,25 @@ import { useAccount } from "./auth-provider";
 const SAVE_KEY = "enterpriseverse:active-business:v1";
 
 export default function SaveSync() {
-  const { mode, saveBusiness } = useAccount();
+  const { mode, authReady, cloudReady, saveBusiness } = useAccount();
   const lastSynced = useRef("");
 
   useEffect(() => {
-    if (mode !== "google") return;
+    if (!authReady || mode !== "email" || !cloudReady) return;
     const sync = async () => {
       try {
         const raw = window.localStorage.getItem(SAVE_KEY);
         if (!raw || raw === lastSynced.current) return;
-        const value = JSON.parse(raw) as unknown;
-        await saveBusiness(SAVE_KEY, value);
+        await saveBusiness(SAVE_KEY, JSON.parse(raw) as unknown);
         lastSynced.current = raw;
       } catch {
-        // Keep local-first behavior. A later interval retries automatically.
+        // A later retry keeps local-first gameplay resilient to transient network failures.
       }
     };
     void sync();
-    const timer = window.setInterval(() => void sync(), 1500);
+    const timer = window.setInterval(() => void sync(), 5000);
     return () => window.clearInterval(timer);
-  }, [mode, saveBusiness]);
+  }, [authReady, cloudReady, mode, saveBusiness]);
 
   return null;
 }
