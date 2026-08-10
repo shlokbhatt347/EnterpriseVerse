@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useAccount } from "./auth-provider";
-import "./account-menu.css";
 
 export default function AccountMenu() {
   const { user, mode, firebaseReady, signInWithGoogle, continueAsGuest, signOut } = useAccount();
