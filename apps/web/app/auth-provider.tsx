@@ -59,8 +59,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signUpWithEmail = useCallback(async (email: string, password: string, displayName: string) => {
-    try { const result = await supabaseSignUp(email.trim().toLowerCase(), password, displayName.trim()); if (result.user) { setUser(accountUser(result.user) as AccountUser); setMode("email"); setCloudReady(false); } return { ok: true, requiresVerification: result.requiresVerification }; }
-    catch (error) { return { ok: false, error: error instanceof Error ? error.message : "Unable to create your account." }; }
+    try {
+      const result = await supabaseSignUp(email.trim().toLowerCase(), password, displayName.trim());
+      if (result.requiresVerification) {
+        setCloudReady(false);
+        setUser(guestUser());
+        setMode("guest");
+        return { ok: true, requiresVerification: true };
+      }
+      if (!result.user) return { ok: false, error: "Account was created but no active session was returned. Please sign in." };
+      setUser(accountUser(result.user) as AccountUser);
+      setMode("email");
+      setCloudReady(false);
+      return { ok: true, requiresVerification: false };
+    } catch (error) { return { ok: false, error: error instanceof Error ? error.message : "Unable to create your account." }; }
   }, []);
 
   const requestPasswordReset = useCallback(async (email: string) => {
