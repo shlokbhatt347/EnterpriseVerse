@@ -20,6 +20,8 @@ declare global { interface Window { firebase?: any } }
 
 const AccountContext = createContext<AccountContextValue | null>(null);
 const GUEST_KEY = "enterpriseverse:account:v1";
+const SAVE_KEY = "enterpriseverse:active-business:v1";
+const SYNCED_KEY = "enterpriseverse:phase15-synced-user:v1";
 const FIREBASE_VERSION = "10.14.1";
 const config = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? "",
@@ -35,10 +37,8 @@ function loadScript(src: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const existing = document.querySelector<HTMLScriptElement>(`script[src="${src}"]`);
     if (existing) { if (window.firebase) resolve(); else existing.addEventListener("load", () => resolve(), { once: true }); return; }
-    const script = document.createElement("script");
-    script.src = src; script.async = true;
-    script.onload = () => resolve(); script.onerror = () => reject(new Error("SDK load failed"));
-    document.head.appendChild(script);
+    const script = document.createElement("script"); script.src = src; script.async = true;
+    script.onload = () => resolve(); script.onerror = () => reject(new Error("SDK load failed")); document.head.appendChild(script);
   });
 }
 
@@ -71,24 +71,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       if (!firebaseConfigured) { if (active) { setUser(guestUser()); setMode("guest"); } return; }
       try {
-        const firebase = await ensureFirebase();
-        if (!active) return;
-        setFirebaseReady(true);
+        const firebase = await ensureFirebase(); if (!active) return; setFirebaseReady(true);
         unsubscribe = firebase.auth().onAuthStateChanged((nextUser: FirebaseUser | null) => { if (active) { setUser(nextUser); setMode(nextUser ? "google" : "guest"); } });
       } catch { if (active) { setUser(guestUser()); setMode("guest"); } }
     })();
     return () => { active = false; unsubscribe?.(); };
   }, []);
 
+  useEffect(() => {
+    if (mode !== "google" || !user || !firebaseReady || !window.firebase) return;
+    let active = true;
+    (async () => {
+      try {
+        const db = window.firebase.firestore();
+        const ref = db.collection("users").doc(user.uid).collection("businesses").doc(docId(SAVE_KEY));
+        const cloud = await ref.get();
+        const localRaw = window.localStorage.getItem(SAVE_KEY);
+        if (cloud.exists) {
+          const value = (cloud.data() as { value?: unknown }).value;
+          if (value && active) {
+            window.localStorage.setItem(SAVE_KEY, JSON.stringify(value));
+            const synced = window.localStorage.getItem(SYNCED_KEY);
+            if (synced !== user.uid) { window.localStorage.setItem(SYNCED_KEY, user.uid); window.location.reload(); }
+          }
+        } else if (localRaw) {
+          await ref.set({ value: JSON.parse(localRaw), updatedAt: new Date().toISOString() }, { merge: true });
+          if (active) window.localStorage.setItem(SYNCED_KEY, user.uid);
+        }
+      } catch { /* local save remains authoritative while offline */ }
+    })();
+    return () => { active = false; };
+  }, [firebaseReady, mode, user]);
+
   const continueAsGuest = useCallback(() => { setUser(guestUser()); setMode("guest"); }, []);
-  const signInWithGoogle = useCallback(async () => {
-    const firebase = await ensureFirebase(); setFirebaseReady(true);
-    await firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider());
-  }, []);
-  const signOut = useCallback(async () => {
-    if (firebaseReady && window.firebase) await window.firebase.auth().signOut();
-    setUser(guestUser()); setMode("guest");
-  }, [firebaseReady]);
+  const signInWithGoogle = useCallback(async () => { const firebase = await ensureFirebase(); setFirebaseReady(true); await firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()); }, []);
+  const signOut = useCallback(async () => { if (firebaseReady && window.firebase) await window.firebase.auth().signOut(); setUser(guestUser()); setMode("guest"); }, [firebaseReady]);
 
   const saveBusiness = useCallback(async (key: string, value: unknown) => {
     try { window.localStorage.setItem(key, JSON.stringify(value)); } catch { /* cloud fallback */ }
