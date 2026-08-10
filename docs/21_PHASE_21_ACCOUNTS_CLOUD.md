@@ -4,8 +4,8 @@
 
 - Email/password authentication through Supabase Auth.
 - Guest mode remains available without an account.
-- Secure HttpOnly access/refresh cookies are used by the Next.js server.
-- Session refresh is handled server-side when the access token expires.
+- Browser-side access/refresh session handling is used because the web app is deployed as a static Next.js export on GitHub Pages.
+- Session refresh is handled before authenticated Supabase requests when the access token is near expiry.
 - Email verification is supported by Supabase Auth.
 - Password recovery email flow and password reset completion are implemented.
 - Account settings support display-name updates.
@@ -46,4 +46,8 @@ against the connected Supabase project before testing cloud persistence.
 
 EnterpriseVerse intentionally uses **email + password only**. There is no Google/Gmail OAuth button in Phase 21.
 
-Guest → account conversion is handled by the same account flow: local progress stays available while the user creates an account, after which the active save can be synchronized to the authenticated cloud account.
+Guest → account conversion keeps local progress available while the user creates an account. Once the account is verified and signed in, the active local save is reconciled with the authenticated cloud save before background synchronization starts.
+
+## Deployment note
+
+The GitHub Pages build receives the public Supabase URL and anon key through build-time GitHub Actions secrets. These values are safe for the browser-facing Supabase client; database access is enforced by RLS, not by hiding the anon key.
