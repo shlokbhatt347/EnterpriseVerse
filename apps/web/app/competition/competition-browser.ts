@@ -5,15 +5,20 @@ import { supabaseConfigured } from "../lib/supabase-browser";
 type CompetitionRoom = { id: string; code: string; host_id: string; competition_type: string; status: string; max_players: number; duration_rounds: number; current_round: number; world_seed: number; created_at: string; updated_at: string };
 type CompetitionPlayer = { room_id: string; user_id: string; display_name: string; ready: boolean; connected: boolean; joined_at: string };
 type Friend = { id: string; requester_id: string; addressee_id: string; status: string };
+type Person = { user_id: string; display_name: string; email: string | null };
 type LeaderboardRow = { user_id: string; scope: string; score: number; rank?: number | null; metrics: Record<string, unknown>; achieved_at: string; profiles?: { display_name: string } | null };
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "") ?? "";
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 const SESSION_KEY = "enterpriseverse:supabase-session:v1";
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function isUuid(value: string): boolean { return UUID_RE.test(value.trim()); }
+function assertUuid(value: string, label: string): string { const normalized = value.trim(); if (!isUuid(normalized)) throw new Error(`${label} is invalid. Choose a valid user or enterprise from the search results.`); return normalized; }
 
 type StoredSession = { access_token: string; refresh_token: string; expires_at?: number; expires_in: number; user: { id: string } };
 function session(): StoredSession | null { try { const raw = window.localStorage.getItem(SESSION_KEY); return raw ? JSON.parse(raw) as StoredSession : null; } catch { return null; } }
-function requireSession() { if (!supabaseConfigured || !url || !anonKey) throw new Error("Cloud multiplayer is not configured."); const value = session(); if (!value?.access_token) throw new Error("Sign in with email to play multiplayer."); return value; }
+function requireSession() { if (!supabaseConfigured || !url || !anonKey) throw new Error("Cloud multiplayer is not configured."); const value = session(); if (!value?.access_token || !isUuid(value.user.id)) throw new Error("Sign in with email to play multiplayer."); return value; }
 async function rest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const current = requireSession();
   const headers = new Headers(init.headers); headers.set("apikey", anonKey); headers.set("Authorization", `Bearer ${current.access_token}`); headers.set("Content-Type", "application/json");
@@ -43,40 +48,53 @@ export async function createRoom(displayName: string, durationRounds = 30) {
 }
 
 export async function findRoomByCode(code: string) {
-  const rows = await rest<CompetitionRoom[]>(`/rest/v1/competition_rooms?select=*&code=eq.${encodeURIComponent(code.trim().toUpperCase())}&limit=1`);
+  const normalized = code.trim().toUpperCase();
+  if (!/^[A-Z0-9]{6}$/.test(normalized)) throw new Error("Enter the 6-character room code.");
+  const rows = await rest<CompetitionRoom[]>(`/rest/v1/competition_rooms?select=*&code=eq.${encodeURIComponent(normalized)}&limit=1`);
   return rows[0] ?? null;
 }
 
 export async function loadRoom(roomId: string) {
+  const id = assertUuid(roomId, "Room ID");
   const [rooms, players] = await Promise.all([
-    rest<CompetitionRoom[]>(`/rest/v1/competition_rooms?select=*&id=eq.${encodeURIComponent(roomId)}&limit=1`),
-    rest<CompetitionPlayer[]>(`/rest/v1/competition_players?select=*&room_id=eq.${encodeURIComponent(roomId)}&order=joined_at.asc`),
+    rest<CompetitionRoom[]>(`/rest/v1/competition_rooms?select=*&id=eq.${encodeURIComponent(id)}&limit=1`),
+    rest<CompetitionPlayer[]>(`/rest/v1/competition_players?select=*&room_id=eq.${encodeURIComponent(id)}&order=joined_at.asc`),
   ]);
   return { room: rooms[0] ?? null, players };
 }
 
 export async function joinRoom(room: CompetitionRoom, displayName: string) {
   const current = requireSession();
+  assertUuid(room.id, "Room ID");
   if (room.status !== "lobby") throw new Error("This competition has already started.");
   await rest("/rest/v1/competition_players?on_conflict=room_id,user_id", { method: "POST", headers: { Prefer: "resolution=ignore-duplicates,return=minimal" }, body: JSON.stringify({ room_id: room.id, user_id: current.user.id, display_name: displayName.trim(), ready: false, connected: true }) });
 }
 
 export async function setReady(roomId: string, ready: boolean) {
-  const current = requireSession();
-  await rest(`/rest/v1/competition_players?room_id=eq.${encodeURIComponent(roomId)}&user_id=eq.${encodeURIComponent(current.user.id)}`, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ ready, connected: true }) });
+  const current = requireSession(); const id = assertUuid(roomId, "Room ID");
+  await rest(`/rest/v1/competition_players?room_id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(current.user.id)}`, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ ready, connected: true }) });
 }
 
 export async function startRoom(roomId: string) {
-  const current = requireSession();
-  const players = await rest<CompetitionPlayer[]>(`/rest/v1/competition_players?select=*&room_id=eq.${encodeURIComponent(roomId)}`);
+  const current = requireSession(); const id = assertUuid(roomId, "Room ID");
+  const players = await rest<CompetitionPlayer[]>(`/rest/v1/competition_players?select=*&room_id=eq.${encodeURIComponent(id)}`);
   if (players.length < 2 || players.some((player) => !player.ready)) throw new Error("At least two ready players are required.");
-  await rest(`/rest/v1/competition_rooms?id=eq.${encodeURIComponent(roomId)}&host_id=eq.${encodeURIComponent(current.user.id)}`, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ status: "active" }) });
+  await rest(`/rest/v1/competition_rooms?id=eq.${encodeURIComponent(id)}&host_id=eq.${encodeURIComponent(current.user.id)}`, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ status: "active" }) });
 }
 
 export async function submitDecision(roomId: string, round: number, decisionId: string) {
-  const result = await rest<{ submitted: number; players: number; round_resolved: boolean; completed: boolean; current_round: number }>("/rest/v1/rpc/phase22_submit_decision", { method: "POST", body: JSON.stringify({ p_room_id: roomId, p_round: round, p_decision_id: decisionId }) });
+  const id = assertUuid(roomId, "Room ID");
+  if (!Number.isInteger(round) || round < 1) throw new Error("Round is invalid.");
+  if (!decisionId.trim() || decisionId.length > 120) throw new Error("Decision is invalid.");
+  const result = await rest<{ submitted: number; players: number; round_resolved: boolean; completed: boolean; current_round: number }>("/rest/v1/rpc/phase22_submit_decision", { method: "POST", body: JSON.stringify({ p_room_id: id, p_round: round, p_decision_id: decisionId.trim() }) });
   if (!result) throw new Error("The competition server did not confirm your decision.");
   return result;
+}
+
+export async function searchPeople(query: string): Promise<Person[]> {
+  const normalized = query.trim();
+  if (normalized.length < 2) return [];
+  return rest<Person[]>(`/rest/v1/rpc/search_people`, { method: "POST", body: JSON.stringify({ p_query: normalized }) });
 }
 
 export async function listFriends() {
@@ -86,12 +104,14 @@ export async function listFriends() {
 
 export async function sendFriendRequest(userId: string) {
   const current = requireSession();
-  if (userId === current.user.id) throw new Error("You cannot add yourself.");
-  await rest("/rest/v1/friendships", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ requester_id: current.user.id, addressee_id: userId.trim(), status: "pending" }) });
+  const target = assertUuid(userId, "Friend ID");
+  if (target === current.user.id) throw new Error("You cannot add yourself.");
+  await rest("/rest/v1/friendships", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ requester_id: current.user.id, addressee_id: target, status: "pending" }) });
 }
 
 export async function updateFriendship(id: string, status: "accepted" | "declined" | "blocked") {
-  await rest(`/rest/v1/friendships?id=eq.${encodeURIComponent(id)}`, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ status }) });
+  const friendshipId = assertUuid(id, "Friendship ID");
+  await rest(`/rest/v1/friendships?id=eq.${encodeURIComponent(friendshipId)}`, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ status }) });
 }
 
 export async function loadLeaderboard(scope: "global" | "friends" | "weekly" | "monthly") {
@@ -103,4 +123,24 @@ export async function loadLeaderboard(scope: "global" | "friends" | "weekly" | "
   return rows.filter((row) => ids.has(row.user_id));
 }
 
-export type { CompetitionRoom, CompetitionPlayer, Friend, LeaderboardRow };
+export async function createEnterprise(name: string, industry: string, teamSize: "solo" | "pair" | "trio" | "company") {
+  if (!name.trim()) throw new Error("Enterprise name is required.");
+  return rest<string>("/rest/v1/rpc/create_enterprise", { method: "POST", body: JSON.stringify({ p_name: name.trim(), p_industry: industry.trim(), p_team_size: teamSize, p_metadata: {} }) });
+}
+
+export async function sendEnterpriseInvitation(businessId: string, inviteeId: string) {
+  const business = assertUuid(businessId, "Enterprise ID");
+  const invitee = assertUuid(inviteeId, "Invitee ID");
+  return rest<string>("/rest/v1/rpc/send_business_invitation", { method: "POST", body: JSON.stringify({ p_business_id: business, p_invitee_id: invitee }) });
+}
+
+export async function acceptEnterpriseInvitation(invitationId: string) {
+  const invitation = assertUuid(invitationId, "Invitation ID");
+  return rest<string>("/rest/v1/rpc/accept_business_invitation", { method: "POST", body: JSON.stringify({ p_invitation_id: invitation }) });
+}
+
+export async function listEnterpriseInvitations() {
+  return rest<Array<{ id: string; business_id: string; inviter_id: string; invitee_id: string; status: string; created_at: string }>>("/rest/v1/business_invitations?select=*&order=created_at.desc&limit=50");
+}
+
+export type { CompetitionRoom, CompetitionPlayer, Friend, Person, LeaderboardRow };
