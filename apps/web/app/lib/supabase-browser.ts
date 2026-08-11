@@ -8,6 +8,7 @@ const STORAGE_KEY = "enterpriseverse:supabase-session:v1";
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "") ?? "";
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() ?? "";
+const PRODUCTION_SITE_URL = "https://shlokbhatt347.github.io/EnterpriseVerse/";
 export const supabaseConfigured = Boolean(url && anonKey);
 
 function requireConfig() {
@@ -43,6 +44,7 @@ function userFromSession(session: Session): BrowserUser {
 
 function getSiteUrl(): string {
   if (configuredSiteUrl) return configuredSiteUrl.replace(/\/$/, "") + "/";
+  if (process.env.NODE_ENV === "production") return PRODUCTION_SITE_URL;
   return `${window.location.origin}${window.location.pathname.split("/auth/")[0] || "/"}`.replace(/([^:]\/)\/+$/, "$1") + "/";
 }
 
@@ -110,13 +112,7 @@ export async function restoreSessionFromUrl() {
     const rawExpiresIn = Number(hash.get("expires_in") ?? "3600");
     const expiresIn = Number.isFinite(rawExpiresIn) ? rawExpiresIn : 3600;
     const user = await request<Session["user"]>("/auth/v1/user", { method: "GET" }, accessToken);
-    writeSession({
-      access_token: accessToken,
-      refresh_token: refreshToken,
-      expires_in: expiresIn,
-      expires_at: Math.floor(Date.now() / 1000) + expiresIn,
-      user,
-    });
+    writeSession({ access_token: accessToken, refresh_token: refreshToken, expires_in: expiresIn, expires_at: Math.floor(Date.now() / 1000) + expiresIn, user });
     window.history.replaceState({}, document.title, `${window.location.pathname}${window.location.search}`);
   }
   return getStoredUser();
@@ -135,15 +131,15 @@ export async function getCurrentUser(): Promise<BrowserUser | null> {
 }
 
 export async function signInWithEmail(email: string, password: string) {
-  const session = await request<Session>("/auth/v1/token?grant_type=password", {
-    method: "POST",
-    body: JSON.stringify({ email, password }),
-  });
+  const session = await request<Session>("/auth/v1/token?grant_type=password", { method: "POST", body: JSON.stringify({ email, password }) });
   writeSession(session);
   return userFromSession(session);
 }
 
 export async function signUpWithEmail(email: string, password: string, displayName: string) {
+  // Always point verification back to the production application when the
+  // production build has no explicit NEXT_PUBLIC_SITE_URL. This prevents a
+  // development localhost callback from leaking into the user-facing email.
   const redirectTo = getAuthRedirect();
   const session = await request<Session>(`/auth/v1/signup?redirect_to=${encodeURIComponent(redirectTo)}`, {
     method: "POST",
@@ -155,30 +151,20 @@ export async function signUpWithEmail(email: string, password: string, displayNa
 
 export async function requestPasswordReset(email: string) {
   const redirectTo = getAuthRedirect("auth/reset");
-  await request<unknown>("/auth/v1/recover", {
-    method: "POST",
-    body: JSON.stringify({ email, redirect_to: redirectTo }),
-  });
+  await request<unknown>("/auth/v1/recover", { method: "POST", body: JSON.stringify({ email, redirect_to: redirectTo }) });
 }
 
 export async function updatePassword(password: string) {
   const session = await refreshIfNeeded();
   if (!session) throw new Error("Reset link expired. Request a new one.");
-  const user = await request<Session["user"]>("/auth/v1/user", {
-    method: "PUT",
-    body: JSON.stringify({ password }),
-  }, session.access_token);
+  const user = await request<Session["user"]>("/auth/v1/user", { method: "PUT", body: JSON.stringify({ password }) }, session.access_token);
   writeSession({ ...session, user });
 }
 
 export async function signOut() {
   const session = await refreshIfNeeded();
   if (session) {
-    try {
-      await request<unknown>("/auth/v1/logout", { method: "POST" }, session.access_token);
-    } catch {
-      /* local session still gets cleared */
-    }
+    try { await request<unknown>("/auth/v1/logout", { method: "POST" }, session.access_token); } catch { /* local session still gets cleared */ }
   }
   writeSession(null);
 }
