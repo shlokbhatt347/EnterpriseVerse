@@ -1,0 +1,52 @@
+name: EnterpriseVerse Quality Gate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, "phase-*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.15.0
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Run simulation tests
+        run: pnpm test:simulation
+
+      - name: Typecheck simulation
+        run: pnpm typecheck:simulation
+
+      - name: Typecheck web
+        run: pnpm typecheck:web
+
+      - name: Check Python API
+        run: python -m compileall -q apps/api/app
+
+      - name: Build web
+        run: pnpm build:web
