@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { loadProfile, updateProfile } from "../lib/supabase-browser";
 import { useAccount } from "../auth-provider";
 import "../auth/auth-shell.css";
 
 export default function AccountPage() {
+  const router = useRouter();
   const { user, mode, authReady, signOut } = useAccount();
   const [displayName, setDisplayName] = useState("");
   const [message, setMessage] = useState("");
@@ -23,6 +25,11 @@ export default function AccountPage() {
     catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to save profile."); }
   }
 
+  async function logout() {
+    await signOut();
+    router.replace("/");
+  }
+
   if (!authReady) return <main className="auth-page"><section className="auth-card"><p className="auth-copy">Loading account…</p></section></main>;
   if (mode !== "email" || !user) return <main className="auth-page"><section className="auth-card"><div className="auth-brand">EnterpriseVerse</div><h1 className="auth-title">Your account</h1><p className="auth-copy">You're playing as a guest. Create an email account to keep your progress in the cloud.</p><Link className="auth-button" href="/auth/signup">Create account</Link></section></main>;
 
@@ -37,6 +44,6 @@ export default function AccountPage() {
     </form>
     {error && <p className="auth-alert" role="alert">{error}</p>}
     {message && <p className="auth-success" role="status">{message}</p>}
-    <div className="auth-links"><Link href="/">Back to simulation</Link><button className="auth-button secondary" type="button" onClick={() => void signOut()}>Sign out</button></div>
+    <div className="auth-links"><Link href="/">Back to simulation</Link><button className="auth-button secondary" type="button" onClick={() => void logout()}>Sign out</button></div>
   </section></main>;
 }
