@@ -15,7 +15,10 @@ const clamp = (value: number, min = 0, max = 100) => Math.max(min, Math.min(max,
 
 export function getLivingWorldSummary(state: SimulationState): LivingWorldSummary {
   const market = state.market; const demand = clamp(market?.demandIndex ?? 50); const confidence = clamp(market?.confidence ?? 50); const pressure = clamp(market?.competitivePressure ?? 25);
-  const economy = demand >= 65 && confidence >= 60 ? "boom" : demand <= 35 || confidence <= 40 ? "slowdown" : "stable";
+  // A newly created business starts from a normal/stable market state (100 demand,
+  // 70 confidence). Boom/slowdown classifications require a meaningful deviation
+  // from that baseline rather than treating healthy baseline demand as a boom.
+  const economy = demand >= 115 && confidence >= 75 ? "boom" : demand <= 85 || confidence <= 45 ? "slowdown" : "stable";
   const competitors = [...(state.agents?.competitors ?? [])].sort((a, b) => b.marketShare - a.marketShare).slice(0, 3);
   return { economy, demand, confidence, competitivePressure: pressure, activeScenarios: (state.scenarios?.active ?? []).map((scenario) => scenario.title), competitorLeaders: competitors.map((c) => ({ name: c.name, marketShare: c.marketShare, strategy: c.strategy })), latestReactions: (state.agents?.lastDecisions ?? []).slice(-6) };
 }
