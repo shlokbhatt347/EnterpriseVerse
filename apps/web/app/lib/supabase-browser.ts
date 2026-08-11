@@ -144,7 +144,7 @@ export async function signInWithEmail(email: string, password: string) {
 }
 
 export async function signUpWithEmail(email: string, password: string, displayName: string) {
-  const redirectTo = getAuthRedirect();
+  const redirectTo = getAuthRedirect("auth/verified");
   const session = await request<Session>(`/auth/v1/signup?redirect_to=${encodeURIComponent(redirectTo)}`, {
     method: "POST",
     body: JSON.stringify({ email, password, data: { display_name: displayName } }),
