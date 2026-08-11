@@ -1,0 +1,101 @@
+/* Phase 27 — Premium interaction system */
+:root{
+  --p27-accent:#7dd3fc;
+  --p27-accent-strong:#60a5fa;
+  --p27-glow:rgba(125,211,252,.16);
+  --p27-surface:rgba(16,24,39,.82);
+  --p27-surface-raised:rgba(20,31,51,.92);
+  --p27-border:rgba(126,155,196,.18);
+  --p27-border-strong:rgba(125,211,252,.38);
+  --p27-shadow:0 20px 60px rgba(0,0,0,.26);
+}
+
+html{scroll-behavior:smooth}
+body{overflow-x:hidden}
+
+/* Make existing cards feel like one coherent product rather than isolated panels. */
+.card,.ui-card{position:relative;overflow:hidden;backdrop-filter:blur(14px);transition:transform .22s ease,border-color .22s ease,box-shadow .22s ease,background .22s ease}
+.card::before,.ui-card::before{content:"";position:absolute;inset:0 0 auto;height:1px;background:linear-gradient(90deg,transparent,var(--p27-accent),transparent);opacity:.18;pointer-events:none}
+.card:hover,.ui-card:hover{border-color:var(--p27-border-strong);box-shadow:var(--p27-shadow);transform:translateY(-2px)}
+
+/* Metric cards communicate importance through motion, not visual noise. */
+.stat-card{isolation:isolate}
+.stat-card::after{content:"";position:absolute;width:90px;height:90px;right:-36px;top:-42px;border-radius:50%;background:var(--p27-glow);filter:blur(2px);z-index:-1;pointer-events:none}
+.stat-value{font-variant-numeric:tabular-nums}
+
+/* The current situation becomes the visual focal point. */
+.attention-card{background:linear-gradient(135deg,rgba(20,31,51,.96),rgba(12,20,34,.94))!important;border-color:var(--p27-border)!important}
+.attention-card.is-warning{border-color:rgba(244,212,123,.34)!important}
+.attention-card.is-danger{border-color:rgba(255,140,160,.38)!important}
+.attention-card.is-success{border-color:rgba(155,229,183,.32)!important}
+.attention-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:14px}
+
+/* Stronger decision hierarchy. */
+.decision-option{position:relative;overflow:hidden}
+.decision-option::after{content:"";position:absolute;inset:auto 0 0;height:2px;background:linear-gradient(90deg,var(--p27-accent),var(--p27-accent-strong));transform:scaleX(0);transform-origin:left;transition:transform .22s ease}
+.decision-option:hover::after,.decision-option.selected::after{transform:scaleX(1)}
+.decision-confirm{box-shadow:0 8px 28px rgba(125,211,252,.12)}
+
+/* Feedback surfaces: success, warning and danger feel distinct without relying only on color. */
+.error,.ui-status{animation:p27-rise .24s ease both}
+.save-status{transition:opacity .2s ease}
+
+/* Better navigation affordance. */
+.nav-item{position:relative;overflow:hidden}
+.nav-item::after{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--p27-accent);transform:scaleX(0);transition:transform .18s ease}
+.nav-item:hover::after,.nav-item.active::after{transform:scaleX(1)}
+
+/* Inputs feel interactive and trustworthy. */
+.field input,.field textarea,.field select,.action-row input{transition:border-color .18s ease,box-shadow .18s ease,background .18s ease}
+.field input:hover,.field textarea:hover,.field select:hover,.action-row input:hover{border-color:rgba(125,211,252,.32)}
+.field input:focus,.field textarea:focus,.field select:focus,.action-row input:focus{background:#101b2d;border-color:var(--p27-accent);box-shadow:0 0 0 3px rgba(125,211,252,.09)}
+
+/* Primary actions get a clear, restrained affordance. */
+.primary{position:relative;overflow:hidden}
+.primary::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent,rgba(125,211,252,.22),transparent);transform:translateX(-120%);transition:transform .5s ease}
+.primary:hover:not(:disabled)::after{transform:translateX(120%)}
+
+/* Onboarding becomes a guided journey. */
+.onboarding .step{animation:p27-rise .45s ease both}
+.onboarding .step:nth-of-type(2){animation-delay:.05s}
+.onboarding .step:nth-of-type(3){animation-delay:.1s}
+.onboarding .structure{transition:transform .2s ease,border-color .2s ease,background .2s ease,box-shadow .2s ease}
+.onboarding .structure:hover{transform:translateY(-3px)}
+.onboard-footer{position:sticky;bottom:14px;padding:10px;border:1px solid rgba(126,155,196,.12);border-radius:14px;background:rgba(7,11,20,.78);backdrop-filter:blur(16px);z-index:10}
+
+/* Feed items reveal information progressively. */
+.feed-item{transition:background .18s ease,padding-left .18s ease;border-radius:9px}
+.feed-item:hover{background:rgba(125,211,252,.045);padding-left:13px}
+
+/* Keep numbers aligned and readable like a financial terminal. */
+.stat-value,.finance-total,.learning-score strong,.people-stats b,.metric-row b{font-variant-numeric:tabular-nums}
+
+/* Lightweight page entrance. */
+.dashboard{animation:p27-page-in .35s ease both}
+
+/* Touch-friendly controls. */
+@media(max-width:900px){
+  .attention-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .card:hover,.ui-card:hover{transform:none}
+}
+@media(max-width:600px){
+  .attention-metrics{grid-template-columns:1fr 1fr}
+  .topbar{backdrop-filter:blur(18px)}
+  .sidebar{box-shadow:0 8px 24px rgba(0,0,0,.16)}
+  .nav-item{min-height:44px}
+  .primary,.secondary,.reset-button,.option,.structure{min-height:44px}
+  .onboard-footer{bottom:8px}
+}
+
+@keyframes p27-rise{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+@keyframes p27-page-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+
+@media(prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+
+@media(forced-colors:active){
+  .card,.ui-card,.attention-card,.nav-item,.structure,.decision-option{border:1px solid CanvasText!important}
+  .primary{border:1px solid ButtonText}
+}
