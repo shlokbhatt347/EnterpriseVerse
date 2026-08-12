@@ -28,6 +28,7 @@ export interface LearningAssessment {
 
 const clamp = (value: number) => Math.max(0, Math.min(100, value));
 const round = (value: number) => Math.round(value * 10) / 10;
+const assessmentCache = new WeakMap<object, LearningAssessment>();
 
 function levelFor(score: number): LearningAssessment["level"] {
   if (score >= 85) return "exceptional";
@@ -36,58 +37,24 @@ function levelFor(score: number): LearningAssessment["level"] {
   return "developing";
 }
 
-/**
- * Converts simulation outcomes into actionable learning feedback.
- * This is deliberately diagnostic rather than punitive: it explains evidence and
- * gives the learner a concrete next experiment instead of assigning a grade alone.
- */
 export function assessLearning(state: SimulationState): LearningAssessment {
+  const cached = assessmentCache.get(state as object);
+  if (cached) return cached;
+
   const metrics = calculateIntegratedMetrics(state);
   const operations = state.operations ?? defaultOperations();
   const kpis = calculateKpis(state);
   const cashDays = kpis.cashRunwayDays;
   const debtPressure = operations.debt <= 0 ? 100 : clamp(100 - operations.debt / Math.max(1, state.business.cash + operations.debt) * 100);
-  const growthQuality = clamp(
-    50 + (state.business.marketShare - 1) * 1.5 + (metrics.businessHealth - 50) * 0.5 - Math.max(0, operations.debt - 5_000) / 500,
-  );
+  const growthQuality = clamp(50 + (state.business.marketShare - 1) * 1.5 + (metrics.businessHealth - 50) * 0.5 - Math.max(0, operations.debt - 5_000) / 500);
 
   const scores: LearningScore[] = [
-    {
-      dimension: "financial-management",
-      score: round(clamp(metrics.cashSafety * 0.6 + metrics.unitMargin * 0.4)),
-      evidence: `Cash safety is ${metrics.cashSafety}/100 and unit margin is ${metrics.unitMargin}%.`,
-      nextStep: cashDays < 14 ? "Protect liquidity before committing to another major expense." : "Compare the return from your next investment against its cash cost.",
-    },
-    {
-      dimension: "customer-focus",
-      score: round(clamp(metrics.customerRetention * 0.55 + kpis.customerSatisfaction * 0.45)),
-      evidence: `Customer retention is ${metrics.customerRetention}/100 and satisfaction is ${kpis.customerSatisfaction}/100.`,
-      nextStep: "Test one change that improves customer value without relying only on discounts.",
-    },
-    {
-      dimension: "operations",
-      score: round(clamp(metrics.operationalEfficiency * 0.65 + metrics.supplierReliability * 0.35)),
-      evidence: `Operational efficiency is ${metrics.operationalEfficiency}/100 with supplier reliability at ${metrics.supplierReliability}/100.`,
-      nextStep: "Balance capacity, inventory and supplier reliability before scaling volume.",
-    },
-    {
-      dimension: "market-strategy",
-      score: round(clamp(metrics.demandCapture * 0.5 + metrics.competitivePosition * 0.5)),
-      evidence: `Demand capture is ${metrics.demandCapture}/100 and competitive position is ${metrics.competitivePosition}/100.`,
-      nextStep: "Use market signals to choose whether to compete on price, quality or differentiation.",
-    },
-    {
-      dimension: "risk-management",
-      score: round(clamp(metrics.cashSafety * 0.45 + debtPressure * 0.35 + metrics.supplierReliability * 0.2)),
-      evidence: `Liquidity, debt pressure and supplier reliability produce a risk score of ${round(clamp(metrics.cashSafety * 0.45 + debtPressure * 0.35 + metrics.supplierReliability * 0.2))}/100.`,
-      nextStep: "Identify the single failure that could hurt the business most and create a mitigation before growth accelerates.",
-    },
-    {
-      dimension: "sustainable-growth",
-      score: round(growthQuality),
-      evidence: `Market share is ${round(state.business.marketShare)}% while overall business health is ${metrics.businessHealth}/100.`,
-      nextStep: "Prefer growth that strengthens customers, margins and resilience at the same time.",
-    },
+    { dimension: "financial-management", score: round(clamp(metrics.cashSafety * 0.6 + metrics.unitMargin * 0.4)), evidence: `Cash safety is ${metrics.cashSafety}/100 and unit margin is ${metrics.unitMargin}%.`, nextStep: cashDays < 14 ? "Protect liquidity before committing to another major expense." : "Compare the return from your next investment against its cash cost." },
+    { dimension: "customer-focus", score: round(clamp(metrics.customerRetention * 0.55 + kpis.customerSatisfaction * 0.45)), evidence: `Customer retention is ${metrics.customerRetention}/100 and satisfaction is ${kpis.customerSatisfaction}/100.`, nextStep: "Test one change that improves customer value without relying only on discounts." },
+    { dimension: "operations", score: round(clamp(metrics.operationalEfficiency * 0.65 + metrics.supplierReliability * 0.35)), evidence: `Operational efficiency is ${metrics.operationalEfficiency}/100 with supplier reliability at ${metrics.supplierReliability}/100.`, nextStep: "Balance capacity, inventory and supplier reliability before scaling volume." },
+    { dimension: "market-strategy", score: round(clamp(metrics.demandCapture * 0.5 + metrics.competitivePosition * 0.5)), evidence: `Demand capture is ${metrics.demandCapture}/100 and competitive position is ${metrics.competitivePosition}/100.`, nextStep: "Use market signals to choose whether to compete on price, quality or differentiation." },
+    { dimension: "risk-management", score: round(clamp(metrics.cashSafety * 0.45 + debtPressure * 0.35 + metrics.supplierReliability * 0.2)), evidence: `Liquidity, debt pressure and supplier reliability produce a risk score of ${round(clamp(metrics.cashSafety * 0.45 + debtPressure * 0.35 + metrics.supplierReliability * 0.2))}/100.`, nextStep: "Identify the single failure that could hurt the business most and create a mitigation before growth accelerates." },
+    { dimension: "sustainable-growth", score: round(growthQuality), evidence: `Market share is ${round(state.business.marketShare)}% while overall business health is ${metrics.businessHealth}/100.`, nextStep: "Prefer growth that strengthens customers, margins and resilience at the same time." },
   ];
 
   const ordered = [...scores].sort((a, b) => b.score - a.score);
@@ -96,7 +63,7 @@ export function assessLearning(state: SimulationState): LearningAssessment {
   const overallScore = round(scores.reduce((sum, item) => sum + item.score, 0) / scores.length);
   const level = levelFor(overallScore);
 
-  return {
+  const result: LearningAssessment = {
     overallScore,
     level,
     strengths,
@@ -108,6 +75,9 @@ export function assessLearning(state: SimulationState): LearningAssessment {
       `If you had one more day, what would you change about ${priorities[0].dimension}?`,
     ],
   };
+
+  assessmentCache.set(state as object, result);
+  return result;
 }
 
 export function scoreDecisionOutcome(before: SimulationState, after: SimulationState): number {
@@ -117,9 +87,5 @@ export function scoreDecisionOutcome(before: SimulationState, after: SimulationS
   const cashChange = after.business.cash - before.business.cash;
   const reputationChange = after.business.reputation - before.business.reputation;
   const marketShareChange = after.business.marketShare - before.business.marketShare;
-
-  // A decision is rewarded for improving the whole business, not just cash.
-  return round(clamp(
-    50 + healthChange * 2 + reputationChange * 0.5 + marketShareChange * 2 + (cashChange > 0 ? 3 : -3),
-  ));
+  return round(clamp(50 + healthChange * 2 + reputationChange * 0.5 + marketShareChange * 2 + (cashChange > 0 ? 3 : -3)));
 }
