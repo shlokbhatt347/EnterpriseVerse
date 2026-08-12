@@ -10,6 +10,7 @@ type StoredSession = { access_token: string; refresh_token: string; expires_at?:
 type RoomState = { room: CompetitionRoom; players: CompetitionPlayer[] };
 type JoinResult = { room: CompetitionRoom; player: CompetitionPlayer };
 type FriendInbox = { friends: Friend[]; notifications: FriendRequestNotification[] };
+type CompetitionDecisionRow = { round: number; decision_id: string; submitted_at: string };
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "") ?? "";
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
@@ -80,6 +81,11 @@ export async function joinRoomByCode(code: string, displayName: string): Promise
   return result;
 }
 
+export async function loadMyCompetitionDecisions(roomId: string) {
+  const id = assertUuid(roomId, "Room ID");
+  return rest<CompetitionDecisionRow[]>(`/rest/v1/competition_submissions?select=round,decision_id,submitted_at&room_id=eq.${encodeURIComponent(id)}&order=round.asc`);
+}
+
 export async function setReady(roomId: string, ready: boolean) { const id = assertUuid(roomId, "Room ID"); const raw = await rest<CompetitionPlayer | CompetitionPlayer[]>("/rest/v1/rpc/set_competition_ready", { method: "POST", body: JSON.stringify({ p_room_id: id, p_ready: ready }) }); return Array.isArray(raw) ? raw[0] : raw; }
 export async function startRoom(roomId: string) { const id = assertUuid(roomId, "Room ID"); const raw = await rest<CompetitionRoom | CompetitionRoom[]>("/rest/v1/rpc/start_competition_room", { method: "POST", body: JSON.stringify({ p_room_id: id }) }); const room = Array.isArray(raw) ? raw[0] : raw; if (!room?.id) throw new Error("The server did not confirm that the competition started."); return room; }
 export async function submitDecision(roomId: string, round: number, decisionId: string) { const id = assertUuid(roomId, "Room ID"); if (!Number.isInteger(round) || round < 1) throw new Error("Round is invalid."); if (!decisionId.trim() || decisionId.length > 120) throw new Error("Decision is invalid."); return rest<{ submitted: number; players: number; round_resolved: boolean; completed: boolean; current_round: number; results: unknown[] }>("/rest/v1/rpc/phase22_submit_decision", { method: "POST", body: JSON.stringify({ p_room_id: id, p_round: round, p_decision_id: decisionId.trim() }) }); }
@@ -95,4 +101,4 @@ export async function createEnterprise(name: string, industry: string, teamSize:
 export async function sendEnterpriseInvitation(businessId: string, inviteeId: string) { const business = assertUuid(businessId, "Enterprise ID"); const invitee = assertUuid(inviteeId, "Invitee ID"); return rest<string>("/rest/v1/rpc/send_business_invitation", { method: "POST", body: JSON.stringify({ p_business_id: business, p_invitee_id: invitee }) }); }
 export async function acceptEnterpriseInvitation(invitationId: string) { const invitation = assertUuid(invitationId, "Invitation ID"); return rest<string>("/rest/v1/rpc/accept_business_invitation", { method: "POST", body: JSON.stringify({ p_invitation_id: invitation }) }); }
 export async function listEnterpriseInvitations() { return rest<Array<{ id: string; business_id: string; inviter_id: string; invitee_id: string; status: string; created_at: string }>>("/rest/v1/business_invitations?select=*&order=created_at.desc&limit=50"); }
-export type { CompetitionRoom, CompetitionPlayer, Friend, Person, FriendRequestNotification, LeaderboardRow, RoomState, JoinResult, FriendInbox };
+export type { CompetitionRoom, CompetitionPlayer, Friend, Person, FriendRequestNotification, LeaderboardRow, RoomState, JoinResult, FriendInbox, CompetitionDecisionRow };
