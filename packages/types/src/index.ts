@@ -10,6 +10,11 @@ export type SupplyChainDisruption = "none" | "supplier_delay" | "supplier_shorta
 export type LifecycleStage = "launch" | "survival" | "growth" | "expansion" | "maturity" | "crisis" | "exit";
 export type EmployeeRole = "operations" | "sales" | "marketing" | "finance" | "product" | "generalist";
 export type ScenarioCategory = "macro" | "market" | "operations" | "finance" | "people" | "supply";
+export type Phase5FundingRound = "bootstrapped" | "pre_seed" | "seed" | "series_a" | "series_b" | "growth";
+export type Phase5InvestorType = "angel" | "venture_capital" | "private_equity" | "strategic";
+export type Phase5TransactionType = "equity" | "debt" | "partnership" | "acquisition" | "merger" | "ipo";
+export type Phase5ContractStatus = "draft" | "active" | "expiring" | "terminated";
+export type Phase5RiskLevel = "low" | "moderate" | "high" | "critical";
 
 export interface Founder { id: string; name: string; cash: number; reputation: number; role?: "founder" | "ceo" | "marketing" | "finance" | "operations"; }
 export interface Customer { id: string; name: string; segment: CustomerSegment; trust: number; lifetimeValue: number; lastPurchaseDay?: number; }
@@ -35,7 +40,6 @@ export interface CompetitorAgent extends AICharacter { role: "competitor"; strat
 export interface InvestorAgent extends AICharacter { role: "investor"; investmentCapacity: number; growthPreference: number; riskAppetite: number; minimumEquity: number; }
 export interface AgentDecision { agentId: string; action: string; rationale: string; effects: Record<string, number>; memory: CharacterMemory; }
 export interface AgentWorldState { customers: CustomerAgent[]; suppliers: SupplierAgent[]; competitors: CompetitorAgent[]; investors: InvestorAgent[]; lastDecisions: AgentDecision[]; }
-
 export interface Employee { id: string; name: string; role: EmployeeRole; salary: number; skill: number; morale: number; productivity: number; loyalty: number; workload: number; employedDay: number; }
 export interface WorkforceState { employees: Employee[]; hiringBudget: number; trainingBudget: number; turnoverRisk: number; productivityIndex: number; moraleIndex: number; payroll: number; }
 export interface FinancialSnapshot { day: number; revenue: number; expenses: number; grossProfit: number; netProfit: number; cash: number; debt: number; inventoryValue: number; workingCapital: number; burnRate: number; runwayDays: number; valuation: number; }
@@ -49,4 +53,15 @@ export interface ReplayState { seed: number; snapshots: ReplaySnapshot[]; decisi
 export interface DecisionOutcome { decisionId: string; label: string; day: number; effects: Record<string, number>; score: number; explanation: string; }
 export interface EntrepreneurProfile { primary: string; secondary: string; strengths: string[]; blindSpots: string[]; }
 export interface RunAssessment { score: number; profile: EntrepreneurProfile; strengths: string[]; lessons: string[]; recommendations: string[]; }
-export interface SimulationState { business: Business; operations?: OperationsState; market?: MarketState; economy?: EconomyState; agents?: AgentWorldState; workforce?: WorkforceState; financials?: FinancialSnapshot; consequences?: ConsequenceState; scenarios?: ScenarioState; replay?: ReplayState; outcomes?: DecisionOutcome[]; events: SimulationEvent[]; log: string[]; }
+
+export interface Phase5Investor { id: string; name: string; type: Phase5InvestorType; committedCapital: number; ownershipPercent: number; targetReturn: number; boardSeat: boolean; }
+export interface Phase5FinancingRecord { id: string; day: number; type: "equity" | "debt"; amount: number; preMoneyValuation: number; postMoneyValuation: number; dilutionPercent: number; investorId?: string; interestRate?: number; termDays?: number; }
+export interface Phase5Board { seats: number; occupiedSeats: number; approvalThresholdPercent: number; members: Array<{ name: string; role: "founder" | "investor" | "independent"; votingPower: number }>; }
+export interface Phase5Contract { id: string; counterparty: string; type: "supplier" | "distribution" | "partnership" | "employment"; value: number; termDays: number; startDay: number; status: Phase5ContractStatus; penaltyPercent: number; }
+export interface Phase5Partnership { id: string; partner: string; strategicValue: number; annualValue: number; exclusivity: boolean; startDay: number; termDays: number; }
+export interface Phase5RiskRegister { liquidity: number; leverage: number; concentration: number; operational: number; regulatory: number; reputation: number; overall: number; level: Phase5RiskLevel; }
+export interface Phase5ESG { environmental: number; social: number; governance: number; sustainabilityScore: number; }
+export interface Phase5Regulation { complianceScore: number; licenceCount: number; unresolvedIssues: number; jurisdiction: string; }
+export interface Phase5State { fundingRound: Phase5FundingRound; valuation: number; ownershipFounderPercent: number; debt: number; financingHistory: Phase5FinancingRecord[]; investors: Phase5Investor[]; board: Phase5Board; contracts: Phase5Contract[]; partnerships: Phase5Partnership[]; risks: Phase5RiskRegister; esg: Phase5ESG; regulation: Phase5Regulation; lastTransaction?: string; }
+
+export interface SimulationState { business: Business; operations?: OperationsState; market?: MarketState; economy?: EconomyState; agents?: AgentWorldState; workforce?: WorkforceState; financials?: FinancialSnapshot; consequences?: ConsequenceState; scenarios?: ScenarioState; replay?: ReplayState; outcomes?: DecisionOutcome[]; phase5?: Phase5State; events: SimulationEvent[]; log: string[]; }
