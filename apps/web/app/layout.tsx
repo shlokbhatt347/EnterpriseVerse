@@ -6,6 +6,7 @@ import "./phase24-experience.css";
 import "./phase27-premium.css";
 import "./ui/primitives.css";
 import "./account-menu.css";
+import "./infinity-ui.css";
 import ThemeToggle from "./theme-toggle";
 import AccountMenu from "./account-menu";
 import SaveSync from "./save-sync";
@@ -18,7 +19,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#070b14",
+  themeColor: "#05070b",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
