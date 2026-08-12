@@ -12,6 +12,7 @@ const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "") ?? "";
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 const SESSION_KEY = "enterpriseverse:supabase-session:v1";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const REQUEST_TIMEOUT_MS = 12_000;
 
 function isUuid(value: string) { return UUID_RE.test(value.trim()); }
 function assertUuid(value: string, label: string) { const normalized = value.trim(); if (!isUuid(normalized)) throw new Error(`${label} is invalid.`); return normalized; }
@@ -25,9 +26,23 @@ async function rest<T>(path: string, init: RequestInit = {}): Promise<T> {
   headers.set("apikey", anonKey);
   headers.set("Authorization", `Bearer ${current.access_token}`);
   headers.set("Content-Type", "application/json");
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  if (init.signal) init.signal.addEventListener("abort", () => controller.abort(), { once: true });
+
   let response: Response;
-  try { response = await fetch(endpoint, { ...init, headers, cache: "no-store" }); }
-  catch (error) { const detail = error instanceof Error ? error.message : "Network request failed"; throw new Error(`Unable to reach the cloud service. Check your connection and try again. (${detail})`); }
+  try {
+    response = await fetch(endpoint, { ...init, headers, cache: "no-store", signal: controller.signal });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("The cloud request took too long. Please try again.");
+    }
+    const detail = error instanceof Error ? error.message : "Network request failed";
+    throw new Error(`Unable to reach the cloud service. Check your connection and try again. (${detail})`);
+  } finally {
+    window.clearTimeout(timeout);
+  }
+
   const raw = await response.text();
   let body: unknown = null;
   try { body = raw ? JSON.parse(raw) : null; } catch { body = raw; }
