@@ -17,10 +17,12 @@ export default function LearningHubPage() {
 
   useEffect(() => {
     if (!authReady) return;
-    void loadBusiness<LearningRecord23[]>(SAVE_KEY).then((saved) => {
-      if (Array.isArray(saved)) setHistory(saved);
-      setLoading(false);
-    }).catch(() => setLoading(false));
+    void loadBusiness<LearningRecord23[]>(SAVE_KEY)
+      .then((saved: LearningRecord23[] | null) => {
+        if (Array.isArray(saved)) setHistory(saved);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
   }, [authReady, loadBusiness]);
 
   const profile = useMemo(() => createSkillProfile23(history), [history]);
