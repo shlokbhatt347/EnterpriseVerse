@@ -19,13 +19,13 @@ export default function SignInPage() {
     const result = await signInWithEmail(email, password);
     setBusy(false);
     if (!result.ok) { setError(result.error ?? "Unable to sign in."); return; }
-    router.push("/");
+    router.push("/start");
   }
 
   return <main className="auth-page"><section className="auth-card" aria-labelledby="signin-title">
     <div className="auth-brand">EnterpriseVerse</div>
-    <h1 id="signin-title" className="auth-title">Welcome back, Founder.</h1>
-    <p className="auth-copy">Sign in with your email and password to continue your businesses and cloud saves.</p>
+    <h1 id="signin-title" className="auth-title">Welcome back.</h1>
+    <p className="auth-copy">Sign in to continue your company, career and simulation progress.</p>
     <form className="auth-form" onSubmit={submit}>
       <label className="auth-label">Email<input className="auth-input" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
       <label className="auth-label">Password<input className="auth-input" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>
