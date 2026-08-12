@@ -23,11 +23,12 @@ describe("Phase 4 executive command center", () => {
     expect(model.recentEvents.length).toBeLessThanOrEqual(5);
   });
 
-  it("turns actual company pressure into prioritized attention", () => {
+  it("turns an actually distressed balance sheet into prioritized attention", () => {
     const state = starter();
     const stressed = {
       ...state,
-      business: { ...state.business, cash: 100 },
+      business: { ...state.business, cash: 0 },
+      operations: { ...state.operations!, debt: 100_000 },
       market: { ...state.market!, competitivePressure: 80 },
     };
     const health = calculatePhase4Health(stressed);
