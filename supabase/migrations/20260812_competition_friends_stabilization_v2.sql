@@ -26,13 +26,8 @@ begin
   if p_room_id is null then raise exception 'Room ID is required'; end if;
   select * into room from public.competition_rooms where id = p_room_id;
   if not found then raise exception 'Competition room not found'; end if;
-  if room.host_id <> actor and not exists (
-    select 1 from public.competition_players where room_id = room.id and user_id = actor
-  ) then raise exception 'You are not a participant in this room'; end if;
-  select coalesce(jsonb_agg(to_jsonb(p) order by p.joined_at asc), '[]'::jsonb)
-    into players
-  from public.competition_players p
-  where p.room_id = room.id;
+  if room.host_id <> actor and not exists (select 1 from public.competition_players where room_id = room.id and user_id = actor) then raise exception 'You are not a participant in this room'; end if;
+  select coalesce(jsonb_agg(to_jsonb(p) order by p.joined_at asc), '[]'::jsonb) into players from public.competition_players p where p.room_id = room.id;
   return jsonb_build_object('room', to_jsonb(room), 'players', players);
 end;
 $$;
@@ -61,15 +56,12 @@ begin
   if not found then raise exception 'Room not found. Check the code and try again.'; end if;
   if room.status <> 'lobby' then raise exception 'This competition has already started'; end if;
   select count(*) into player_count from public.competition_players where room_id = room.id;
-  if player_count >= room.max_players and not exists (
-    select 1 from public.competition_players where room_id = room.id and user_id = actor
-  ) then raise exception 'This room is full'; end if;
+  if player_count >= room.max_players and not exists (select 1 from public.competition_players where room_id = room.id and user_id = actor) then raise exception 'This room is full'; end if;
   insert into public.competition_players(room_id,user_id,display_name,ready,connected)
   values(room.id,actor,normalized_name,false,true)
   on conflict(room_id,user_id) do update
     set display_name = excluded.display_name,
-        connected = true,
-        updated_at = now()
+        connected = true
   returning * into player;
   return jsonb_build_object('room', to_jsonb(room), 'player', to_jsonb(player));
 end;
@@ -89,14 +81,8 @@ declare
   notifications jsonb;
 begin
   if actor is null then raise exception 'Authentication required'; end if;
-  select coalesce(jsonb_agg(to_jsonb(f) order by f.updated_at desc), '[]'::jsonb)
-    into friends
-  from public.friendships f
-  where f.requester_id = actor or f.addressee_id = actor;
-  select coalesce(jsonb_agg(to_jsonb(n) order by n.created_at desc), '[]'::jsonb)
-    into notifications
-  from public.notifications n
-  where n.user_id = actor and n.type in ('friend_request','friend_request_response');
+  select coalesce(jsonb_agg(to_jsonb(f) order by f.updated_at desc), '[]'::jsonb) into friends from public.friendships f where f.requester_id = actor or f.addressee_id = actor;
+  select coalesce(jsonb_agg(to_jsonb(n) order by n.created_at desc), '[]'::jsonb) into notifications from public.notifications n where n.user_id = actor and n.type in ('friend_request','friend_request_response');
   return jsonb_build_object('friends', friends, 'notifications', notifications);
 end;
 $$;
