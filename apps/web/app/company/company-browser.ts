@@ -45,16 +45,15 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   } finally { window.clearTimeout(timeout); }
 }
 
-export async function loadCompanyWorkspace(businessId: string) {
-  return request<CompanyWorkspace>("/rest/v1/rpc/get_company_workspace", { method: "POST", body: JSON.stringify({ p_business_id: uuid(businessId) }) });
-}
-
+export async function loadCompanyWorkspace(businessId: string) { return request<CompanyWorkspace>("/rest/v1/rpc/get_company_workspace", { method: "POST", body: JSON.stringify({ p_business_id: uuid(businessId) }) }); }
 export async function createProposal(args: { businessId: string; departmentKey: string; proposalType: string; title: string; description: string; amount: number; expectedImpact?: Record<string, unknown> }) {
   if (!args.title.trim()) throw new Error("Proposal title is required.");
   if (!Number.isFinite(args.amount) || args.amount < 0) throw new Error("Proposal amount is invalid.");
   return request<string>("/rest/v1/rpc/create_business_proposal", { method: "POST", body: JSON.stringify({ p_business_id: uuid(args.businessId), p_department_key: args.departmentKey, p_proposal_type: args.proposalType, p_title: args.title.trim(), p_description: args.description.trim(), p_amount: args.amount, p_expected_impact: args.expectedImpact ?? {} }) });
 }
-
-export async function actOnProposal(proposalId: string, action: "approve" | "reject" | "request_changes", note = "") {
-  return request<{ proposal_id: string; status: string; current_step: number }>("/rest/v1/rpc/act_on_business_proposal", { method: "POST", body: JSON.stringify({ p_proposal_id: uuid(proposalId), p_action: action, p_note: note.trim() || null }) });
+export async function reviseProposal(args: { proposalId: string; title: string; description: string; amount: number; expectedImpact?: Record<string, unknown> }) {
+  if (!args.title.trim()) throw new Error("Proposal title is required.");
+  if (!Number.isFinite(args.amount) || args.amount < 0) throw new Error("Proposal amount is invalid.");
+  return request<string>("/rest/v1/rpc/revise_business_proposal", { method: "POST", body: JSON.stringify({ p_proposal_id: uuid(args.proposalId), p_title: args.title.trim(), p_description: args.description.trim(), p_amount: args.amount, p_expected_impact: args.expectedImpact ?? {} }) });
 }
+export async function actOnProposal(proposalId: string, action: "approve" | "reject" | "request_changes", note = "") { return request<{ proposal_id: string; status: string; current_step: number }>("/rest/v1/rpc/act_on_business_proposal", { method: "POST", body: JSON.stringify({ p_proposal_id: uuid(proposalId), p_action: action, p_note: note.trim() || null }) }); }
