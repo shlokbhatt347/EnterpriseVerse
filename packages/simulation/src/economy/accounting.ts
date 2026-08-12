@@ -21,13 +21,29 @@ export function recordSale(sale: Sale, productionCost: number): LedgerEntry {
 }
 
 export function summarizeAccounting(ledger: LedgerEntry[], sales: Sale[], products: Product[]): AccountingState {
-  const cashIn = ledger.reduce((total, entry) => total + entry.credit, 0);
-  const cashOut = ledger.reduce((total, entry) => total + entry.debit, 0);
-  const grossProfit = sales.reduce((total, sale) => {
-    const product = products.find((item) => item.id === sale.productId);
-    return total + sale.total - sale.quantity * (product?.productionCost ?? 0);
-  }, 0);
-  return { cashIn, cashOut, grossProfit, netProfit: cashIn - cashOut, inventoryValue: inventoryValue(products), ledger };
+  let cashIn = 0;
+  let cashOut = 0;
+  for (const entry of ledger) {
+    cashIn += entry.credit;
+    cashOut += entry.debit;
+  }
+
+  // Preserve the previous calculation while replacing one products.find() per sale
+  // with a single product-id lookup map: O(sales + products) instead of O(sales * products).
+  const costs = new Map(products.map((product) => [product.id, product.productionCost]));
+  let grossProfit = 0;
+  for (const sale of sales) {
+    grossProfit += sale.total - sale.quantity * (costs.get(sale.productId) ?? 0);
+  }
+
+  return {
+    cashIn,
+    cashOut,
+    grossProfit,
+    netProfit: cashIn - cashOut,
+    inventoryValue: inventoryValue(products),
+    ledger,
+  };
 }
 
 export function calculateBreakEvenUnits(product: Product, fixedCosts: number): number {
