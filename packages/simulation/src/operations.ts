@@ -103,22 +103,22 @@ export function applyBusinessAction(state: SimulationState, action: BusinessActi
     }
   }
 
-  return {
-    ...state,
-    business: nextBusiness,
-    operations,
-    log: [...state.log, `Day ${business.day}: ${message}`],
-  };
+  return { ...state, business: nextBusiness, operations, log: [...state.log, `Day ${business.day}: ${message}`] };
 }
 
+const kpiCache = new WeakMap<object, ReturnType<typeof calculateKpis>>();
+
 export function calculateKpis(state: SimulationState) {
+  const cached = kpiCache.get(state as object);
+  if (cached) return cached;
+
   const operations = state.operations ?? defaultOperations();
   const profit = state.business.revenue - state.business.expenses;
   const grossMargin = state.business.revenue === 0 ? 0 : (profit / state.business.revenue) * 100;
   const dailyOperatingCost = Math.max(1, 450 + operations.employees * 150);
   const cashRunwayDays = Math.max(0, Math.floor(state.business.cash / dailyOperatingCost));
 
-  return {
+  const result = {
     profit: Math.round(profit),
     grossMargin: Math.round(grossMargin * 10) / 10,
     cashRunwayDays,
@@ -130,4 +130,7 @@ export function calculateKpis(state: SimulationState) {
     productionCapacity: operations.productionCapacity,
     employees: operations.employees,
   };
+
+  kpiCache.set(state as object, result);
+  return result;
 }
