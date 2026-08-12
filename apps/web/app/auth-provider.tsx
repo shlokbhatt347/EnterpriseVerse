@@ -1,11 +1,41 @@
 "use client";
 
-import { createContext, useCallback, useEffect, useMemo, useState } from "react";
-import { getCurrentUser, getStoredUser, loadCloudSave, requestPasswordReset as supabaseRequestPasswordReset, restoreSessionFromUrl, saveCloudSave, deleteCloudSave, signInWithEmail as supabaseSignIn, signOut as supabaseSignOut, signUpWithEmail as supabaseSignUp, supabaseConfigured } from "./lib/supabase-browser";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import {
+  getCurrentUser,
+  getStoredUser,
+  loadCloudSave,
+  requestPasswordReset as supabaseRequestPasswordReset,
+  restoreSessionFromUrl,
+  saveCloudSave,
+  deleteCloudSave,
+  signInWithEmail as supabaseSignIn,
+  signOut as supabaseSignOut,
+  signUpWithEmail as supabaseSignUp,
+  supabaseConfigured,
+} from "./lib/supabase-browser";
 
-type AccountUser = { id: string; displayName: string; email: string | null; emailConfirmed: boolean };
+type AccountUser = {
+  id: string;
+  displayName: string;
+  email: string | null;
+  emailConfirmed: boolean;
+};
 type AuthMode = "loading" | "guest" | "email";
-type AccountContextValue = { user: AccountUser | null; mode: AuthMode; authReady: boolean; cloudReady: boolean; signInWithEmail: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>; signUpWithEmail: (email: string, password: string, displayName: string) => Promise<{ ok: boolean; error?: string }>; requestPasswordReset: (email: string) => Promise<{ ok: boolean; error?: string }>; continueAsGuest: () => void; signOut: () => Promise<void>; saveBusiness: (key: string, value: unknown) => Promise<void>; loadBusiness: <T>(key: string) => Promise<T | null>; deleteBusiness: (key: string) => Promise<void> };
+type AccountContextValue = {
+  user: AccountUser | null;
+  mode: AuthMode;
+  authReady: boolean;
+  cloudReady: boolean;
+  signInWithEmail: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
+  signUpWithEmail: (email: string, password: string, displayName: string) => Promise<{ ok: boolean; error?: string }>;
+  requestPasswordReset: (email: string) => Promise<{ ok: boolean; error?: string }>;
+  continueAsGuest: () => void;
+  signOut: () => Promise<void>;
+  saveBusiness: (key: string, value: unknown) => Promise<void>;
+  loadBusiness: <T>(key: string) => Promise<T | null>;
+  deleteBusiness: (key: string) => Promise<void>;
+};
 
 const AccountContext = createContext<AccountContextValue | null>(null);
 const GUEST_KEY = "enterpriseverse:account:v2";
@@ -149,14 +179,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithEmail = useCallback(async (email: string, password: string) => {
     try {
-      const next = accountUser(
-        await supabaseSignIn(email.trim().toLowerCase(), password),
-      );
-
-      if (!next) {
-        return { ok: false, error: "Unable to sign in." };
-      }
-
+      const next = accountUser(await supabaseSignIn(email.trim().toLowerCase(), password));
+      if (!next) return { ok: false, error: "Unable to sign in." };
       setUser(next);
       setMode("email");
       setCloudReady(false);
@@ -184,7 +208,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!result.user) {
         return {
           ok: false,
-          error: "Account creation did not return an active session. Email confirmation may still be enabled in Supabase Auth.",
+          error:
+            "Account creation did not return an active session. Disable email confirmation in Supabase Auth and try again.",
         };
       }
 
@@ -195,10 +220,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       return {
         ok: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unable to create your account.",
+        error: error instanceof Error ? error.message : "Unable to create your account.",
       };
     }
   }, []);
@@ -210,10 +232,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       return {
         ok: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unable to send the reset email.",
+        error: error instanceof Error ? error.message : "Unable to send the reset email.",
       };
     }
   }, []);
@@ -256,9 +275,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       /* ignore local storage failure */
     }
 
-    if (mode === "email" && cloudReady) {
-      queueCloudSave(key, value);
-    }
+    if (mode === "email" && cloudReady) queueCloudSave(key, value);
   }, [cloudReady, mode]);
 
   const loadBusiness = useCallback(async <T,>(key: string): Promise<T | null> => {
@@ -336,8 +353,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAccount() {
   const value = useContext(AccountContext);
-  if (!value) {
-    throw new Error("useAccount must be used inside AuthProvider");
-  }
+  if (!value) throw new Error("useAccount must be used inside AuthProvider");
   return value;
 }
