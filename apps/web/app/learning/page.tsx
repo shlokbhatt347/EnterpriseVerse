@@ -41,7 +41,7 @@ export default function LearningHubPage() {
   if (loading) return <main className="learning-page"><section className="learning-card"><p>Loading your founder profile…</p></section></main>;
 
   return <main className="learning-page">
-    <header className="learning-header"><div><div className="eyebrow">EnterpriseVerse · Phase 23</div><h1>Train your founder judgement.</h1><p>Every challenge adapts to what you do well, what you miss and what the business world is asking from you next.</p></div><Link className="learning-back" href="/">Back to simulation</Link></header>
+    <header className="learning-header"><div><div className="eyebrow">EnterpriseVerse · Phase 23</div><h1>Train your founder judgement.</h1><p>Every challenge adapts to what you do well, what you miss and what the business world is asking from you next.</p></div><div className="learning-header-actions"><Link className="learning-back" href="/intelligence">Enterprise Intelligence →</Link><Link className="learning-back" href="/">Back to simulation</Link></div></header>
 
     <section className="learning-grid">
       <article className="learning-card profile-card"><div className="eyebrow">Founder profile</div><h2>{debrief.founderStyle}</h2><div className="profile-score"><strong>{Math.round(debrief.score)}</strong><span>average decision quality</span></div><div className="skill-list">{Object.entries(profile.skills).map(([skill, value]) => <div key={skill}><div><span>{skill}</span><strong>{Math.round(value)}</strong></div><div className="skill-bar"><i style={{ width: `${value}%` }} /></div></div>)}</div></article>
