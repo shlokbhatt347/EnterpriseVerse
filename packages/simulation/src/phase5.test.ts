@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { SimulationState } from "@enterpriseverse/types";
 import { createBusiness } from "./index";
 import {
   addPhase5Contract,
@@ -13,7 +14,7 @@ import {
   setPhase5Regulation,
 } from "./phase5";
 
-function makeState() {
+function makeState(): SimulationState {
   const state = createBusiness({
     name: "Phase Five Labs",
     idea: "A test enterprise",
