@@ -27,7 +27,7 @@ describe("Phase 4 executive command center", () => {
     const state = starter();
     const stressed = {
       ...state,
-      business: { ...state.business, cash: 1000 },
+      business: { ...state.business, cash: 100 },
       market: { ...state.market!, competitivePressure: 80 },
     };
     const health = calculatePhase4Health(stressed);
