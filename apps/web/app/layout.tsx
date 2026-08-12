@@ -9,6 +9,7 @@ import "./account-menu.css";
 import ThemeToggle from "./theme-toggle";
 import AccountMenu from "./account-menu";
 import SaveSync from "./save-sync";
+import NotificationCenter from "./notification-center";
 import { AuthProvider } from "./auth-provider";
 
 export const metadata: Metadata = {
@@ -27,6 +28,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <a className="skip-link" href="#main-content">Skip to main content</a>
         <AuthProvider>
           <ThemeToggle />
+          <NotificationCenter />
           <AccountMenu />
           <SaveSync />
           <div id="main-content">{children}</div>
