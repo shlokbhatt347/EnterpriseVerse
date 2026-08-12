@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { calculatePhase7Score, getPhase7Achievements, getPhase7CompanySnapshot } from "@enterpriseverse/simulation";
 import { loadActiveSeason, loadGlobalRankings } from "./endgame-browser";
 import "./endgame.css";
@@ -50,7 +50,7 @@ export default function EndgamePage() {
 
     {!state || !snapshot || !score ? <section className="empty-legacy panel"><div className="empty-icon">◆</div><h2>Your enterprise legacy starts here.</h2><p>Create or resume a company to unlock your score, achievements and endgame analytics.</p><div className="empty-actions"><Link href="/play" className="primary-button">Build your business →</Link><Link href="/enterprise" className="secondary-button">Company setup</Link></div></section> : <>
       <section className="hero-grid">
-        <article className="score-hero panel"><div className="label">ENTERPRISE SCORE</div><div className="score-value">{score.overall}<span>/100</span></div><div className="score-ring" style={{ "--score": `${score.overall * 3.6}deg` } as React.CSSProperties}><div><b>{score.overall}</b><small>LEGACY</small></div></div><h2>{snapshot.companyName}</h2><p>Day {snapshot.day} · {snapshot.outcome === "continue" ? "Operating" : snapshot.outcome.toUpperCase()}</p></article>
+        <article className="score-hero panel"><div className="label">ENTERPRISE SCORE</div><div className="score-value">{score.overall}<span>/100</span></div><div className="score-ring" style={{ "--score": `${score.overall * 3.6}deg` } as CSSProperties}><div><b>{score.overall}</b><small>LEGACY</small></div></div><h2>{snapshot.companyName}</h2><p>Day {snapshot.day} · {snapshot.outcome === "continue" ? "Operating" : snapshot.outcome.toUpperCase()}</p></article>
         <article className="panel metric-panel"><div className="panel-heading"><div><span className="label">COMPANY LEGACY</span><h2>What your company has built</h2></div><Link href="/company" className="text-link">Open company →</Link></div><div className="metric-grid"><div><span>Valuation</span><b>{money(snapshot.valuation)}</b></div><div><span>Revenue</span><b>{money(snapshot.revenue)}</b></div><div><span>Profit</span><b>{money(snapshot.profit)}</b></div><div><span>Cash</span><b>{money(snapshot.cash)}</b></div><div><span>Market share</span><b>{snapshot.marketShare.toFixed(1)}%</b></div><div><span>Reputation</span><b>{Math.round(snapshot.reputation)}/100</b></div></div></article>
       </section>
 
