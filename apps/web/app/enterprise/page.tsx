@@ -38,9 +38,7 @@ export default function EnterprisePage() {
 
   useEffect(() => {
     if (!query.trim() || query.trim().length < 2 || !user) { setResults([]); return; }
-    const timer = window.setTimeout(() => {
-      void searchPeople(query).then(setResults).catch(() => setResults([]));
-    }, 250);
+    const timer = window.setTimeout(() => { void searchPeople(query).then(setResults).catch(() => setResults([])); }, 180);
     return () => window.clearTimeout(timer);
   }, [query, user]);
 
@@ -64,16 +62,19 @@ export default function EnterprisePage() {
   }, "Enterprise created. You can now invite your co-founders.");
 
   const invite = (person: Person) => run(async () => {
-    await sendEnterpriseInvitation(enterprise!.id, person.user_id);
+    const invitationId = await sendEnterpriseInvitation(enterprise!.id, person.user_id);
     setSelected((current) => current.filter((item) => item.user_id !== person.user_id));
-    setQuery(""); setResults([]);
-    const next = await listEnterpriseInvitations(); setInvitations(next);
+    setQuery("");
+    setResults([]);
+    setInvitations((current) => [{ id: invitationId, business_id: enterprise!.id, inviter_id: user.id, invitee_id: person.user_id, status: "pending", created_at: new Date().toISOString() }, ...current]);
   }, `Invitation sent to ${person.display_name}.`);
 
   const choose = (person: Person) => {
     if (selected.some((item) => item.user_id === person.user_id)) return;
     if (remaining !== null && remaining <= 0) return;
-    setSelected((current) => [...current, person]); setQuery(""); setResults([]);
+    setSelected((current) => [...current, person]);
+    setQuery("");
+    setResults([]);
   };
 
   return <main className="enterprise-shell">
@@ -98,7 +99,7 @@ export default function EnterprisePage() {
         </>}
       </section>
 
-      <section className="enterprise-card inbox-card"><div className="card-top"><div><span className="enterprise-kicker">03 · INBOX</span><h2>Your invitations</h2></div><span>{invitations.filter((item) => item.invitee_id === user.id && item.status === "pending").length} pending</span></div>{invitations.length ? <div className="invitation-list">{invitations.map((item) => <div className="invitation-row" key={item.id}><div><strong>{item.status === "pending" && item.invitee_id === user.id ? "Enterprise invitation" : "Invitation"}</strong><small>{item.status} · {new Date(item.created_at).toLocaleDateString()}</small></div>{item.invitee_id === user.id && item.status === "pending" ? <button className="enterprise-secondary" disabled={busy} onClick={() => run(async () => { await acceptEnterpriseInvitation(item.id); const next = await listEnterpriseInvitations(); setInvitations(next); }, "Invitation accepted. You are now a founder.")}>Accept</button> : <span className={`status ${item.status}`}>{item.status}</span>}</div>)}</div> : <div className="empty-state">No invitations yet.</div>}</section>
+      <section className="enterprise-card inbox-card"><div className="card-top"><div><span className="enterprise-kicker">03 · INBOX</span><h2>Your invitations</h2></div><span>{invitations.filter((item) => item.invitee_id === user.id && item.status === "pending").length} pending</span></div>{invitations.length ? <div className="invitation-list">{invitations.map((item) => <div className="invitation-row" key={item.id}><div><strong>{item.status === "pending" && item.invitee_id === user.id ? "Enterprise invitation" : "Invitation"}</strong><small>{item.status} · {new Date(item.created_at).toLocaleDateString()}</small></div>{item.invitee_id === user.id && item.status === "pending" ? <button className="enterprise-secondary" disabled={busy} onClick={() => run(async () => { await acceptEnterpriseInvitation(item.id); setInvitations((current) => current.map((entry) => entry.id === item.id ? { ...entry, status: "accepted" } : entry)); }, "Invitation accepted. You are now a founder.")}>Accept</button> : <span className={`status ${item.status}`}>{item.status}</span>}</div>)}</div> : <div className="empty-state">No invitations yet.</div>}</section>
     </div>
     {(message || error) && <div className={error ? "enterprise-toast error" : "enterprise-toast success"} role={error ? "alert" : "status"}>{error || message}</div>}
   </main>;
