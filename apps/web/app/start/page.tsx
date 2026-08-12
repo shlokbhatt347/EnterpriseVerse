@@ -19,6 +19,7 @@ const roles: Array<{ id: PlayerRole; title: string; short: string; description: 
 export default function StartPage() {
   const router = useRouter();
   const user = getStoredUser();
+  const userId = user?.id ?? null;
   const [path, setPath] = useState<OnboardingPath | null>(null);
   const [role, setRole] = useState<PlayerRole | null>(null);
   const [bootstrap, setBootstrap] = useState<PlayerBootstrap | null>(null);
@@ -27,18 +28,21 @@ export default function StartPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!user) { setLoading(false); return; }
+    if (!userId) { setLoading(false); return; }
+    let active = true;
     void getPlayerBootstrap().then((value) => {
+      if (!active) return;
       setBootstrap(value);
       const profile = value?.profile;
-      if (profile?.onboarding_completed) {
-        router.replace("/");
+      if (profile?.onboarding_completed && profile.current_business_id) {
+        router.replace("/company");
         return;
       }
       if (profile?.onboarding_path) setPath(profile.onboarding_path);
       if (profile?.preferred_role) setRole(profile.preferred_role);
-    }).catch(() => undefined).finally(() => setLoading(false));
-  }, [router, user]);
+    }).catch(() => undefined).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [router, userId]);
 
   const selectedRole = useMemo(() => roles.find((item) => item.id === role), [role]);
 
@@ -96,6 +100,6 @@ export default function StartPage() {
     </section>}
 
     {error && <p className="start-error" role="alert">{error}</p>}
-    <footer className="start-footer"><span>Your player identity stays with you as your company and career evolve.</span><Link href="/enterprise">Open Enterprise Builder →</Link></footer>
+    <footer className="start-footer"><span>Your player identity stays with you as your company and career evolve.</span><Link href="/company">Open company workspace →</Link></footer>
   </main>;
 }
