@@ -90,10 +90,6 @@ function getSiteUrl(): string {
   return `${window.location.origin}${basePath}`.replace(/([^:]\/)\/+$/, "$1") + "/";
 }
 
-function getAuthRedirect(path = ""): string {
-  return new URL(path.replace(/^\//, ""), getSiteUrl()).toString();
-}
-
 async function request<T>(
   path: string,
   init: RequestInit = {},
@@ -169,9 +165,7 @@ async function refreshIfNeeded(): Promise<Session | null> {
         "/auth/v1/token?grant_type=refresh_token",
         {
           method: "POST",
-          body: JSON.stringify({
-            refresh_token: current.refresh_token,
-          }),
+          body: JSON.stringify({ refresh_token: current.refresh_token }),
         },
       );
 
@@ -267,50 +261,37 @@ export async function signInWithEmail(
   return userFromSession(current);
 }
 
+/**
+ * Signup is intentionally session-first. The connected Supabase project must
+ * have email confirmations disabled so signup returns an active session
+ * immediately and does not send a confirmation email.
+ */
 export async function signUpWithEmail(
   email: string,
   password: string,
   displayName: string,
 ) {
-  const redirectTo = getAuthRedirect("auth/verified");
-
-  const current = await request<Session>(
-    `/auth/v1/signup?redirect_to=${encodeURIComponent(redirectTo)}`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        email,
-        password,
-        data: { display_name: displayName },
-      }),
-    },
-  );
-
-  if (current?.access_token) {
-    writeSession(current);
-  }
-
-  return {
-    user: current?.user ? userFromSession(current) : null,
-    requiresVerification: !current?.access_token,
-  };
-}
-
-export async function resendSignupVerification(email: string) {
-  const redirectTo = getAuthRedirect("auth/verified");
-
-  await request<unknown>("/auth/v1/resend", {
+  const current = await request<Session>("/auth/v1/signup", {
     method: "POST",
     body: JSON.stringify({
-      type: "signup",
       email,
-      options: { emailRedirectTo: redirectTo },
+      password,
+      data: { display_name: displayName },
     }),
   });
+
+  if (!current?.access_token || !current.user) {
+    throw new Error(
+      "Account creation did not return an active session. Disable email confirmations in Supabase Auth Providers.",
+    );
+  }
+
+  writeSession(current);
+  return userFromSession(current);
 }
 
 export async function requestPasswordReset(email: string) {
-  const redirectTo = getAuthRedirect("auth/reset");
+  const redirectTo = new URL("auth/reset", PRODUCTION_SITE_URL).toString();
 
   await request<unknown>("/auth/v1/recover", {
     method: "POST",
@@ -358,10 +339,7 @@ export async function signOut() {
   writeSession(null);
 }
 
-async function authenticatedRequest<T>(
-  path: string,
-  init: RequestInit = {},
-) {
+async function authenticatedRequest<T>(path: string, init: RequestInit = {}) {
   const current = await refreshIfNeeded();
 
   if (!current) {
@@ -390,9 +368,7 @@ export async function saveCloudSave(key: string, payload: unknown) {
     "/rest/v1/business_saves?on_conflict=user_id,save_key",
     {
       method: "POST",
-      headers: {
-        Prefer: "resolution=merge-duplicates,return=minimal",
-      },
+      headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
       body: JSON.stringify({
         user_id: current.user.id,
         save_key: key,
