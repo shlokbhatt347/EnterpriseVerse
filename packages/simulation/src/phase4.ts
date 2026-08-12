@@ -247,6 +247,10 @@ export function getPhase4CommandCenter(state: SimulationState, choices: Simulati
   };
 }
 
+export function resolveChoice(state: SimulationState, choice: SimulationChoice): SimulationState {
+  return applyChoice(state, choice);
+}
+
 export function advancePhase4Day(state: SimulationState): SimulationState {
   return advanceLivingWorldDay(state);
 }
