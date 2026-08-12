@@ -11,6 +11,24 @@ type RoomState = { room: CompetitionRoom; players: CompetitionPlayer[] };
 type JoinResult = { room: CompetitionRoom; player: CompetitionPlayer };
 type FriendInbox = { friends: Friend[]; notifications: FriendRequestNotification[] };
 type CompetitionDecisionRow = { round: number; decision_id: string; submitted_at: string };
+type PlayerRole = "ceo" | "cfo" | "cmo" | "coo" | "cto" | "chro";
+type OnboardingPath = "founder" | "executive" | "explore";
+type PlayerBootstrap = {
+  profile: {
+    user_id: string;
+    display_name: string;
+    avatar_url: string | null;
+    onboarding_path: OnboardingPath;
+    preferred_role: PlayerRole | null;
+    current_business_id: string | null;
+    active_role: PlayerRole | null;
+    onboarding_completed: boolean;
+  } | null;
+  current_business: Record<string, unknown> | null;
+  current_membership: { business_id: string; user_id: string; role: string; joined_at: string } | null;
+};
+
+type EnterpriseInvitation = { id: string; business_id: string; inviter_id: string; invitee_id: string; requested_role: string; status: string; created_at: string; responded_at?: string | null };
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "") ?? "";
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
@@ -50,6 +68,15 @@ async function rest<T>(path: string, init: RequestInit = {}): Promise<T> {
     if (error instanceof TypeError && error.message === "Failed to fetch") throw new Error("Unable to reach the cloud service. Check your connection and try again.");
     throw error;
   } finally { window.clearTimeout(timeout); }
+}
+
+export async function getPlayerBootstrap(): Promise<PlayerBootstrap | null> {
+  const result = await rest<PlayerBootstrap | PlayerBootstrap[]>("/rest/v1/rpc/get_player_bootstrap", { method: "POST", body: "{}" });
+  return Array.isArray(result) ? result[0] ?? null : result;
+}
+
+export async function setPlayerOnboarding(path: OnboardingPath, role?: PlayerRole | null) {
+  return rest<boolean>("/rest/v1/rpc/set_player_onboarding", { method: "POST", body: JSON.stringify({ p_path: path, p_role: role ?? null }) });
 }
 
 export async function createRoom(displayName: string, durationRounds = 30) {
@@ -98,7 +125,7 @@ export async function respondFriendRequest(friendshipId: string, action: "accept
 export async function markNotificationRead(notificationId: string) { const id = assertUuid(notificationId, "Notification ID"); return rest<string>("/rest/v1/rpc/mark_notification_read", { method: "POST", body: JSON.stringify({ p_notification_id: id }) }); }
 export async function loadLeaderboard(scope: "global" | "friends" | "weekly" | "monthly") { return rest<LeaderboardRow[]>("/rest/v1/rpc/get_leaderboard", { method: "POST", body: JSON.stringify({ p_scope: scope, p_limit: 50 }) }); }
 export async function createEnterprise(name: string, industry: string, teamSize: "solo" | "pair" | "trio" | "company") { if (!name.trim()) throw new Error("Enterprise name is required."); return rest<string>("/rest/v1/rpc/create_enterprise", { method: "POST", body: JSON.stringify({ p_name: name.trim(), p_industry: industry.trim(), p_team_size: teamSize, p_metadata: {} }) }); }
-export async function sendEnterpriseInvitation(businessId: string, inviteeId: string) { const business = assertUuid(businessId, "Enterprise ID"); const invitee = assertUuid(inviteeId, "Invitee ID"); return rest<string>("/rest/v1/rpc/send_business_invitation", { method: "POST", body: JSON.stringify({ p_business_id: business, p_invitee_id: invitee }) }); }
+export async function sendEnterpriseInvitation(businessId: string, inviteeId: string, requestedRole: "cfo" | "cmo" | "coo" | "cto" | "chro" | "founder" = "founder") { const business = assertUuid(businessId, "Enterprise ID"); const invitee = assertUuid(inviteeId, "Invitee ID"); return rest<string>("/rest/v1/rpc/send_business_invitation", { method: "POST", body: JSON.stringify({ p_business_id: business, p_invitee_id: invitee, p_requested_role: requestedRole }) }); }
 export async function acceptEnterpriseInvitation(invitationId: string) { const invitation = assertUuid(invitationId, "Invitation ID"); return rest<string>("/rest/v1/rpc/accept_business_invitation", { method: "POST", body: JSON.stringify({ p_invitation_id: invitation }) }); }
-export async function listEnterpriseInvitations() { return rest<Array<{ id: string; business_id: string; inviter_id: string; invitee_id: string; status: string; created_at: string }>>("/rest/v1/business_invitations?select=*&order=created_at.desc&limit=50"); }
-export type { CompetitionRoom, CompetitionPlayer, Friend, Person, FriendRequestNotification, LeaderboardRow, RoomState, JoinResult, FriendInbox, CompetitionDecisionRow };
+export async function listEnterpriseInvitations() { return rest<EnterpriseInvitation[]>("/rest/v1/business_invitations?select=id,business_id,inviter_id,invitee_id,requested_role,status,created_at,responded_at&order=created_at.desc&limit=50"); }
+export type { CompetitionRoom, CompetitionPlayer, Friend, Person, FriendRequestNotification, LeaderboardRow, RoomState, JoinResult, FriendInbox, CompetitionDecisionRow, PlayerRole, OnboardingPath, PlayerBootstrap, EnterpriseInvitation };
