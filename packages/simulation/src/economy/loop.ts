@@ -44,13 +44,15 @@ export function advanceEconomyDay(
   let supplyChain = state.supplyChain ?? createSupplyChainState(products[0]);
 
   const primarySupplier = suppliers[0];
+  const supplierById = new Map(suppliers.map((supplier) => [supplier.id, supplier]));
+  const productById = new Map(products.map((product) => [product.id, product]));
+
   if (primarySupplier) supplyChain = triggerSupplyChainDisruption(supplyChain, day, primarySupplier);
 
   const purchaseOrders: PurchaseOrder[] = state.purchaseOrders.map((order) => {
     if (order.status !== "ordered" || order.deliveryDay > day) return order;
-    const product = products.find((item) => item.id === order.productId);
-    if (!product) return { ...order, status: "cancelled" };
-    const supplier = suppliers.find((item) => item.id === order.supplierId);
+    if (!productById.has(order.productId)) return { ...order, status: "cancelled" };
+    const supplier = supplierById.get(order.supplierId);
     if ((supplyChain.disruption === "supplier_shortage" || supplyChain.disruption === "supplier_delay") && supplier?.id === primarySupplier?.id) {
       return { ...order, deliveryDay: order.deliveryDay + 1 };
     }
@@ -81,21 +83,18 @@ export function advanceEconomyDay(
   const sales = [...state.sales];
   let revenue = 0;
   let unitsSold = 0;
-  for (const product of products) {
-    if (product.status !== "active") continue;
+  const saleEntries: LedgerEntry[] = [];
+
+  products = products.map((product) => {
+    if (product.status !== "active") return product;
     const demand = calculateDemand(product, marketDemand, competitorPrice ?? product.sellingPrice);
     const result = sellProduct(product, demand, day, `sale-${sales.length + 1}-d${day}`);
-    products = products.map((item) => item.id === product.id ? result.product : item);
-    if (result.sale) {
-      sales.push(result.sale);
-      revenue += result.sale.total;
-      unitsSold += result.sale.quantity;
-    }
-  }
-
-  const saleEntries: LedgerEntry[] = sales.slice(state.sales.length).map((sale) => {
-    const product = products.find((item) => item.id === sale.productId);
-    return recordSale(sale, product?.productionCost ?? 0);
+    if (!result.sale) return result.product;
+    sales.push(result.sale);
+    revenue += result.sale.total;
+    unitsSold += result.sale.quantity;
+    saleEntries.push(recordSale(result.sale, result.product.productionCost));
+    return result.product;
   });
 
   if (primarySupplier && supplyChain.rawMaterialInventory <= supplyChain.reorderPoint) {
@@ -109,8 +108,39 @@ export function advanceEconomyDay(
     }
   }
 
-  const ledger: LedgerEntry[] = [...state.accounting.ledger, ...purchaseEntries, ...saleEntries];
-  const accounting = summarizeAccounting(ledger, sales, products);
+  const newLedgerEntries = [...purchaseEntries, ...saleEntries];
+  const ledger = newLedgerEntries.length === 0 ? state.accounting.ledger : [...state.accounting.ledger, ...newLedgerEntries];
+
+  const previousProducts = state.products;
+  const currentCostById = new Map(products.map((product) => [product.id, product.productionCost]));
+  const sameProductCosts = previousProducts.length === products.length && previousProducts.every((previous) => currentCostById.get(previous.id) === previous.productionCost);
+
+  let accounting: EconomyState["accounting"];
+  if (sameProductCosts) {
+    let saleCashIn = 0;
+    let purchaseCashOut = 0;
+    let saleCost = 0;
+    for (const entry of saleEntries) {
+      saleCashIn += entry.credit;
+      saleCost += entry.debit;
+    }
+    for (const entry of purchaseEntries) purchaseCashOut += entry.debit;
+
+    const cashIn = state.accounting.cashIn + saleCashIn;
+    const cashOut = state.accounting.cashOut + purchaseCashOut + saleCost;
+    accounting = {
+      ...state.accounting,
+      cashIn,
+      cashOut,
+      grossProfit: state.accounting.grossProfit + saleCashIn - saleCost,
+      netProfit: cashIn - cashOut,
+      inventoryValue: inventoryValue(products),
+      ledger,
+    };
+  } else {
+    accounting = summarizeAccounting(ledger, sales, products);
+  }
+
   supplyChain = { ...supplyChain, overstockUnits: Math.max(0, products.reduce((total, product) => total + product.inventory, 0) - supplyChain.targetStock) };
 
   return {
