@@ -30,6 +30,7 @@ export default function AccountMenu() {
         <div className="account-heading"><strong>{user.displayName}</strong><span>{user.email ?? "Email account"}</span></div>
         <Link className="account-action primary" href="/account" onClick={() => setOpen(false)}>Profile & settings</Link>
         <Link className="account-action" href="/" onClick={() => setOpen(false)}>Business simulator</Link>
+        <Link className="account-action" href="/intelligence" onClick={() => setOpen(false)}>Enterprise intelligence</Link>
         <Link className="account-action" href="/learning" onClick={() => setOpen(false)}>Founder learning</Link>
         <Link className="account-action" href="/competition" onClick={() => setOpen(false)}>Competition</Link>
         <button type="button" className="account-action" onClick={async () => { await signOut(); setOpen(false); }}>Log out</button>
