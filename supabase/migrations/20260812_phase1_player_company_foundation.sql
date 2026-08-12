@@ -34,6 +34,23 @@ create index if not exists profiles_current_business_idx on public.profiles(curr
 create index if not exists business_members_business_role_idx on public.business_members(business_id, role, joined_at desc);
 create index if not exists business_invitations_invitee_role_idx on public.business_invitations(invitee_id, requested_role, status, created_at desc);
 
+-- Backfill existing enterprise owners into the Phase 1 player context without changing names.
+update public.profiles p
+set onboarding_path = 'founder',
+    preferred_role = 'ceo',
+    current_business_id = owned.id,
+    active_role = 'ceo',
+    onboarding_completed = true,
+    updated_at = now()
+from lateral (
+  select b.id
+  from public.businesses b
+  where b.user_id = p.user_id
+  order by b.updated_at desc nulls last, b.created_at desc
+  limit 1
+) owned
+where p.current_business_id is null or p.onboarding_completed = false;
+
 create or replace function public.set_player_onboarding(p_path text, p_role text default null)
 returns boolean language plpgsql security definer set search_path = public
 as $$
@@ -42,9 +59,12 @@ begin
   if actor is null then raise exception 'Authentication required'; end if;
   if p_path not in ('founder','executive','explore') then raise exception 'Invalid onboarding path'; end if;
   if p_role is not null and p_role not in ('ceo','cfo','cmo','coo','cto','chro') then raise exception 'Invalid role'; end if;
-  insert into public.profiles(user_id, display_name, onboarding_path, preferred_role)
-  values (actor, 'Founder', p_path, p_role)
-  on conflict (user_id) do update set onboarding_path=excluded.onboarding_path, preferred_role=excluded.preferred_role, updated_at=now();
+  insert into public.profiles(user_id, onboarding_path, preferred_role)
+  values (actor, p_path, p_role)
+  on conflict (user_id) do update set
+    onboarding_path = excluded.onboarding_path,
+    preferred_role = excluded.preferred_role,
+    updated_at = now();
   return true;
 end;
 $$;
@@ -54,7 +74,7 @@ grant execute on function public.set_player_onboarding(text,text) to authenticat
 create or replace function public.get_player_bootstrap()
 returns jsonb language sql stable security definer set search_path = public
 as $$
-select jsonb_build_object('profile', to_jsonb(p), 'current_business', case when b.id is null then null else to_jsonb(b) end, 'current_membership', case when bm.business_id is null then null else to_jsonb(bm) end)
+select jsonb_build_object('profile',to_jsonb(p),'current_business',case when b.id is null then null else to_jsonb(b) end,'current_membership',case when bm.business_id is null then null else to_jsonb(bm) end)
 from public.profiles p
 left join public.businesses b on b.id=p.current_business_id
 left join public.business_members bm on bm.business_id=p.current_business_id and bm.user_id=p.user_id
@@ -64,7 +84,7 @@ revoke all on function public.get_player_bootstrap() from public, anon;
 grant execute on function public.get_player_bootstrap() to authenticated;
 
 create or replace function public.create_enterprise(p_name text,p_industry text,p_team_size text,p_metadata jsonb default '{}'::jsonb)
-returns uuid language plpgsql security definer set search_path = public
+returns uuid language plpgsql security definer set search_path=public
 as $$
 declare actor uuid := (select auth.uid()); business_id uuid;
 begin
@@ -73,9 +93,13 @@ begin
   if length(trim(p_name)) < 1 or length(trim(p_name)) > 120 then raise exception 'Invalid enterprise name'; end if;
   insert into public.businesses(user_id,name,industry,team_size,metadata) values(actor,trim(p_name),nullif(trim(p_industry),''),p_team_size,coalesce(p_metadata,'{}'::jsonb)) returning id into business_id;
   insert into public.business_members(business_id,user_id,role) values(business_id,actor,'ceo');
-  insert into public.profiles(user_id, display_name, onboarding_path, preferred_role, current_business_id, active_role, onboarding_completed)
-  values(actor, 'Founder', 'founder', 'ceo', business_id, 'ceo', true)
-  on conflict (user_id) do update set onboarding_path='founder', preferred_role='ceo', current_business_id=business_id, active_role='ceo', onboarding_completed=true, updated_at=now();
+  update public.profiles
+  set onboarding_path='founder', preferred_role='ceo', current_business_id=business_id, active_role='ceo', onboarding_completed=true, updated_at=now()
+  where user_id=actor;
+  if not found then
+    insert into public.profiles(user_id,onboarding_path,preferred_role,current_business_id,active_role,onboarding_completed)
+    values(actor,'founder','ceo',business_id,'ceo',true);
+  end if;
   return business_id;
 end;
 $$;
@@ -83,7 +107,7 @@ revoke all on function public.create_enterprise(text,text,text,jsonb) from publi
 grant execute on function public.create_enterprise(text,text,text,jsonb) to authenticated;
 
 create or replace function public.send_business_invitation(p_business_id uuid,p_invitee_id uuid,p_requested_role text default 'founder')
-returns uuid language plpgsql security definer set search_path = public
+returns uuid language plpgsql security definer set search_path=public
 as $$
 declare actor uuid := (select auth.uid()); business_row public.businesses%rowtype; limit_count integer; participant_count integer; invitation_id uuid;
 begin
@@ -106,7 +130,7 @@ revoke all on function public.send_business_invitation(uuid,uuid,text) from publ
 grant execute on function public.send_business_invitation(uuid,uuid,text) to authenticated;
 
 create or replace function public.accept_business_invitation(p_invitation_id uuid)
-returns uuid language plpgsql security definer set search_path = public
+returns uuid language plpgsql security definer set search_path=public
 as $$
 declare actor uuid := (select auth.uid()); invite public.business_invitations%rowtype; business_row public.businesses%rowtype; limit_count integer; participant_count integer; assigned_role text;
 begin
@@ -121,9 +145,13 @@ begin
   assigned_role := case when invite.requested_role='founder' then 'founder' else invite.requested_role end;
   insert into public.business_members(business_id,user_id,role) values(invite.business_id,actor,assigned_role) on conflict(business_id,user_id) do update set role=excluded.role;
   update public.business_invitations set status='accepted',responded_at=now() where id=invite.id;
-  insert into public.profiles(user_id,onboarding_path,preferred_role,current_business_id,active_role,onboarding_completed)
-  values(actor,'executive',nullif(invite.requested_role,'founder'),invite.business_id,case when invite.requested_role='founder' then null else invite.requested_role end,true)
-  on conflict(user_id) do update set onboarding_path='executive',preferred_role=nullif(invite.requested_role,'founder'),current_business_id=invite.business_id,active_role=case when invite.requested_role='founder' then null else invite.requested_role end,onboarding_completed=true,updated_at=now();
+  update public.profiles
+  set onboarding_path='executive', preferred_role=nullif(invite.requested_role,'founder'), current_business_id=invite.business_id, active_role=case when invite.requested_role='founder' then null else invite.requested_role end, onboarding_completed=true, updated_at=now()
+  where user_id=actor;
+  if not found then
+    insert into public.profiles(user_id,onboarding_path,preferred_role,current_business_id,active_role,onboarding_completed)
+    values(actor,'executive',nullif(invite.requested_role,'founder'),invite.business_id,case when invite.requested_role='founder' then null else invite.requested_role end,true);
+  end if;
   return invite.business_id;
 end;
 $$;
