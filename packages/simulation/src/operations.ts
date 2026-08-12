@@ -14,24 +14,14 @@ const money = (value: number) => Number.isFinite(value) ? Math.max(0, Math.round
 const wholeNumber = (value: number) => Number.isFinite(value) ? Math.floor(value) : 0;
 
 export function defaultOperations(): OperationsState {
-  return {
-    price: 120,
-    quality: 50,
-    marketingBudget: 0,
-    productionCapacity: 20,
-    employees: 1,
-    supplierUnitCost: 60,
-    brandAwareness: 10,
-    customerSatisfaction: 60,
-    debt: 0,
-  };
+  return { price: 120, quality: 50, marketingBudget: 0, productionCapacity: 20, employees: 1, supplierUnitCost: 60, brandAwareness: 10, customerSatisfaction: 60, debt: 0 };
 }
 
 export function applyBusinessAction(state: SimulationState, action: BusinessAction): SimulationState {
   const current = state.operations ?? defaultOperations();
   const business = state.business;
-  let operations = { ...current };
-  let nextBusiness = { ...business };
+  const operations = { ...current };
+  const nextBusiness = { ...business };
   let message = "";
 
   switch (action.type) {
@@ -106,11 +96,24 @@ export function applyBusinessAction(state: SimulationState, action: BusinessActi
   return { ...state, business: nextBusiness, operations, log: [...state.log, `Day ${business.day}: ${message}`] };
 }
 
-const kpiCache = new WeakMap<object, ReturnType<typeof calculateKpis>>();
+export interface SimulationKpis {
+  profit: number;
+  grossMargin: number;
+  cashRunwayDays: number;
+  debt: number;
+  price: number;
+  quality: number;
+  brandAwareness: number;
+  customerSatisfaction: number;
+  productionCapacity: number;
+  employees: number;
+}
 
-export function calculateKpis(state: SimulationState) {
-  const cached = kpiCache.get(state as object);
-  if (cached) return cached;
+const kpiCache = new WeakMap<SimulationState, SimulationKpis>();
+
+export function calculateKpis(state: SimulationState): SimulationKpis {
+  const cached = kpiCache.get(state);
+  if (cached !== undefined) return cached;
 
   const operations = state.operations ?? defaultOperations();
   const profit = state.business.revenue - state.business.expenses;
@@ -118,7 +121,7 @@ export function calculateKpis(state: SimulationState) {
   const dailyOperatingCost = Math.max(1, 450 + operations.employees * 150);
   const cashRunwayDays = Math.max(0, Math.floor(state.business.cash / dailyOperatingCost));
 
-  const result = {
+  const result: SimulationKpis = {
     profit: Math.round(profit),
     grossMargin: Math.round(grossMargin * 10) / 10,
     cashRunwayDays,
@@ -131,6 +134,6 @@ export function calculateKpis(state: SimulationState) {
     employees: operations.employees,
   };
 
-  kpiCache.set(state as object, result);
+  kpiCache.set(state, result);
   return result;
 }
