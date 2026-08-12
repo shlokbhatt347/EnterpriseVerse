@@ -25,6 +25,7 @@ export * from "./scenarios";
 export * from "./replay";
 export * from "./assessment";
 export * from "./phase4";
+export * from "./phase7";
 export type { BusinessAction } from "./operations";
 export type { IntegratedMetrics } from "./integration";
 export type { LearningAssessment, LearningDimension, LearningScore } from "./learning";
@@ -111,16 +112,10 @@ export function applyChoice(state: SimulationState, selected: SimulationChoice):
   const customers = effects.customerTrust ? business.customers.map((customer, index) => index === 0 ? { ...customer, trust: clamp(customer.trust + effects.customerTrust) } : customer) : business.customers;
   const suppliers = effects.supplierRelationship ? business.suppliers.map((supplier, index) => index === 0 ? { ...supplier, relationship: clamp(supplier.relationship + effects.supplierRelationship) } : supplier) : business.suppliers;
   const extraCustomers = Math.max(0, Math.round(effects.customers ?? 0));
-  const newCustomers = Array.from({ length: extraCustomers }, (_, index): Customer => ({ id: `customer-${business.customers.length + index + 1}-d${business.day}`, name: `New Customer ${business.customers.length + index + 1}`, segment: index % 3 === 0 ? "premium" : index % 2 === 0 ? "standard" : "budget", trust: 50, lifetimeValue: 0 }));
-  const nextBusiness: Business = { ...business, cash: Math.max(0, business.cash + (effects.cash ?? 0)), revenue: business.revenue + (effects.revenue ?? 0), reputation: clamp(business.reputation + (effects.reputation ?? 0)), inventory: Math.max(0, business.inventory + (effects.inventory ?? 0)), customers: [...customers, ...newCustomers], suppliers, marketShare: clamp(business.marketShare + (effects.marketShare ?? 0)) };
-  const economy = state.economy ? { ...state.economy, products: state.economy.products.map((product, index) => index === 0 ? { ...product, inventory: nextBusiness.inventory } : product) } : state.economy;
-  const outcome = scoreDecisionOutcome(selected.id, selected.label, business.day, effects);
-  const delayed = Object.fromEntries(Object.entries(effects).filter(([key]) => key === "reputation" || key === "marketShare").map(([key, value]) => [key, value * 0.5]));
-  const consequence = Object.keys(delayed).length ? consequenceFromChoice(state, selected.id, delayed, 2, `The delayed effect of “${selected.label}” became visible.`) : undefined;
-  const consequenceState = consequence ? scheduleConsequence(state.consequences ?? createConsequenceState(), consequence) : state.consequences;
-  const replay = recordDecision(state.replay ?? createReplayState(1), selected.id);
-  return { ...state, business: nextBusiness, economy, consequences: consequenceState, replay, outcomes: [...(state.outcomes ?? []), outcome].slice(-100), events: [], log: [...state.log, `Day ${business.day}: chose “${selected.label}”.`] };
+  const newCustomers = Array.from({ length: extraCustomers }, (_, index): Customer => ({ id: `customer-${business.customers.length + index + 1}-d${business.day}`, name: `New Customer ${business.customers.length + index + 1}`, segment: index % 3 === 0 ? "premium" : index % 2 === 0 ? "standard" : "budget", trust: 55, lifetimeValue: 0 }));
+  const nextBusiness: Business = { ...business, cash: Math.max(0, business.cash + (effects.cash ?? 0)), revenue: Math.max(0, business.revenue + (effects.revenue ?? 0)), reputation: clamp(business.reputation + (effects.reputation ?? 0)), inventory: Math.max(0, business.inventory + (effects.inventory ?? 0)), marketShare: clamp(business.marketShare + (effects.marketShare ?? 0)), customers: [...customers, ...newCustomers] };
+  const nextOperations = { ...(state.operations ?? defaultOperations()), customerSatisfaction: clamp((state.operations?.customerSatisfaction ?? 70) + (effects.customerTrust ?? 0) * 0.15), marketingBudget: 0 };
+  const nextState: SimulationState = { ...state, business: nextBusiness, operations: nextOperations, events: [], log: [...state.log, `Day ${business.day}: decision “${selected.label}” applied.`] };
+  const lifecycle = getLifecycleStage(nextBusiness);
+  return { ...nextState, business: { ...nextState.business, status: lifecycle === "exit" ? "exited" : nextState.business.status } };
 }
-
-export function getRunAssessment(state: SimulationState) { return assessRun(state.business, state.outcomes ?? []); }
-export function getLifecycle(state: SimulationState) { return getLifecycleStage(state.business); }
