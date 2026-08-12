@@ -12,7 +12,7 @@ declare
   room public.competition_rooms%rowtype;
   player_limit integer := 4;
   normalized_name text := trim(coalesce(p_display_name, ''));
-  normalized_duration integer := greatest(1, least(coalesce(p_duration_rounds, 30), 365));
+  normalized_duration integer := greatest(5, least(coalesce(p_duration_rounds, 30), 90));
   room_code text;
   attempts integer := 0;
 begin
