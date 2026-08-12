@@ -45,16 +45,10 @@ async function rest<T>(path: string, init: RequestInit = {}): Promise<T> {
     }
     return body as T;
   } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error("The cloud request took too long. Please try again.");
-    }
-    if (error instanceof TypeError && error.message === "Failed to fetch") {
-      throw new Error("Unable to reach the cloud service. Check your connection and try again.");
-    }
+    if (error instanceof DOMException && error.name === "AbortError") throw new Error("The cloud request took too long. Please try again.");
+    if (error instanceof TypeError && error.message === "Failed to fetch") throw new Error("Unable to reach the cloud service. Check your connection and try again.");
     throw error;
-  } finally {
-    window.clearTimeout(timeout);
-  }
+  } finally { window.clearTimeout(timeout); }
 }
 
 export async function createRoom(displayName: string, durationRounds = 30) {
@@ -92,6 +86,7 @@ export async function submitDecision(roomId: string, round: number, decisionId: 
 
 export async function searchPeople(query: string): Promise<Person[]> { const normalized = query.trim(); if (normalized.length < 2) return []; return rest<Person[]>("/rest/v1/rpc/search_people", { method: "POST", body: JSON.stringify({ p_query: normalized }) }); }
 export async function loadFriendInbox(): Promise<FriendInbox> { const result = await rest<FriendInbox>("/rest/v1/rpc/get_friend_inbox", { method: "POST", body: "{}" }); if (!Array.isArray(result?.friends) || !Array.isArray(result?.notifications)) throw new Error("The server returned an invalid friend inbox."); return result; }
+export async function listFriendNotifications() { const inbox = await loadFriendInbox(); return inbox.notifications; }
 export async function sendFriendRequest(userId: string) { const target = assertUuid(userId, "Friend ID"); return rest<string>("/rest/v1/rpc/send_friend_request", { method: "POST", body: JSON.stringify({ p_addressee_id: target }) }); }
 export async function respondFriendRequest(friendshipId: string, action: "accepted" | "declined") { const id = assertUuid(friendshipId, "Friend request ID"); return rest<string>("/rest/v1/rpc/respond_friend_request", { method: "POST", body: JSON.stringify({ p_friendship_id: id, p_action: action }) }); }
 export async function markNotificationRead(notificationId: string) { const id = assertUuid(notificationId, "Notification ID"); return rest<string>("/rest/v1/rpc/mark_notification_read", { method: "POST", body: JSON.stringify({ p_notification_id: id }) }); }
