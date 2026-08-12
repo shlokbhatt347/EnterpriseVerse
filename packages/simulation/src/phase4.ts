@@ -75,7 +75,7 @@ function normalizeFinancialHealth(state: SimulationState): number {
   const runway = Math.max(0, state.financials?.runwayDays ?? 0);
   const cashScore = clamp(cash / 2000);
   const debtScore = 100 - clamp((debt / Math.max(1, cash + debt)) * 100);
-  const runwayScore = clamp(runway / 90 * 100);
+  const runwayScore = clamp((runway / 90) * 100);
   return round(clamp(cashScore * 0.35 + debtScore * 0.35 + runwayScore * 0.3));
 }
 
@@ -108,7 +108,9 @@ export function calculatePhase4Health(state: SimulationState): Phase4Health {
   const operationsHealth = clamp(65 + inventory * 0.3 - supplyRisk * 7 + (operations?.quality ?? 60) * 0.25);
   const workforceHealth = clamp((workforce?.moraleIndex ?? 65) * 0.55 + (workforce?.productivityIndex ?? 65) * 0.45);
   const reputation = clamp(state.business.reputation);
-  const innovation = clamp(operations?.quality ?? 60 + (market?.strategyScore ?? 50) * 0.35);
+  const quality = operations?.quality ?? 60;
+  const strategy = market?.strategyScore ?? 50;
+  const innovation = clamp(quality * 0.65 + strategy * 0.35);
   const risk = clamp(
     100 - (
       financial * 0.3 +
