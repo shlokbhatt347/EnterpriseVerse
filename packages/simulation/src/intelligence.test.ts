@@ -43,12 +43,13 @@ describe("Phase 6 intelligence", () => {
     expect(result.confidence).toBe("directional");
   });
 
-  it("grounds advisor evidence in live simulation values", () => {
+  it("grounds CFO evidence in live simulation values", () => {
     const current = state();
-    current.business.cash = 9000;
+    current.business.cash = 4_000;
+    current.operations = { ...(current.operations ?? {} as never), debt: 10_000 } as SimulationState["operations"];
     const brief = buildEnterpriseBrief(current, "cfo");
     const combined = brief.priorities.map((item) => item.evidence).join(" ");
-    expect(combined).toContain("₹9,000");
+    expect(combined).toContain("₹4,000");
   });
 
   it("returns a consistent metric set for the intelligence dashboard", () => {
