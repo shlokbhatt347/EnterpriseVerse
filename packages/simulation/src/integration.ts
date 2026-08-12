@@ -16,11 +16,12 @@ export interface IntegratedMetrics {
   businessHealth: number;
 }
 
-/**
- * Derives cross-system metrics from the canonical simulation state.
- * This is intentionally read-only: the simulation engine remains the source of truth.
- */
+const metricsCache = new WeakMap<object, IntegratedMetrics>();
+
 export function calculateIntegratedMetrics(state: SimulationState): IntegratedMetrics {
+  const cached = metricsCache.get(state as object);
+  if (cached) return cached;
+
   const operations = state.operations ?? defaultOperations();
   const market = state.market ?? createMarketState();
   const economy = state.economy;
@@ -36,14 +37,10 @@ export function calculateIntegratedMetrics(state: SimulationState): IntegratedMe
   ));
 
   const customers = state.business.customers;
-  const customerRetention = round(clamp(
-    customers.length === 0 ? 0 : customers.reduce((sum, customer) => sum + customer.trust, 0) / customers.length,
-  ));
+  const customerRetention = round(clamp(customers.length === 0 ? 0 : customers.reduce((sum, customer) => sum + customer.trust, 0) / customers.length));
 
   const suppliers = state.business.suppliers;
-  const supplierReliability = round(clamp(
-    suppliers.length === 0 ? 0 : suppliers.reduce((sum, supplier) => sum + supplier.reliability, 0) / suppliers.length,
-  ));
+  const supplierReliability = round(clamp(suppliers.length === 0 ? 0 : suppliers.reduce((sum, supplier) => sum + supplier.reliability, 0) / suppliers.length));
 
   const competitivePosition = round(clamp(
     50 + (operations.quality - market.competitorQuality) * 0.8
@@ -53,9 +50,7 @@ export function calculateIntegratedMetrics(state: SimulationState): IntegratedMe
 
   const productionCapacity = Math.max(1, operations.productionCapacity);
   const inventory = economy?.products.reduce((sum, product) => sum + product.inventory, 0) ?? state.business.inventory;
-  const operationalEfficiency = round(clamp(
-    50 + Math.min(30, inventory / productionCapacity * 5) + Math.min(20, operations.employees * 2),
-  ));
+  const operationalEfficiency = round(clamp(50 + Math.min(30, inventory / productionCapacity * 5) + Math.min(20, operations.employees * 2)));
 
   const dailyCost = Math.max(1, 450 + operations.employees * 150);
   const cashSafety = round(clamp((state.business.cash / dailyCost) * 3.33));
@@ -71,7 +66,7 @@ export function calculateIntegratedMetrics(state: SimulationState): IntegratedMe
       + kpis.customerSatisfaction * 0.1,
   ));
 
-  return {
+  const result = {
     unitMargin,
     demandCapture,
     customerRetention,
@@ -81,12 +76,11 @@ export function calculateIntegratedMetrics(state: SimulationState): IntegratedMe
     cashSafety,
     businessHealth,
   };
+
+  metricsCache.set(state as object, result);
+  return result;
 }
 
-/**
- * Performs cheap invariant checks at simulation boundaries. It returns messages instead
- * of throwing so callers can surface diagnostics without breaking a running simulation.
- */
 export function validateIntegratedState(state: SimulationState): string[] {
   const issues: string[] = [];
   const business = state.business;
@@ -100,9 +94,7 @@ export function validateIntegratedState(state: SimulationState): string[] {
     ["reputation", business.reputation],
     ["marketShare", business.marketShare],
   ];
-  for (const [name, value] of finiteValues) {
-    if (!Number.isFinite(value)) issues.push(`business.${name} must be finite`);
-  }
+  for (const [name, value] of finiteValues) if (!Number.isFinite(value)) issues.push(`business.${name} must be finite`);
 
   if (business.cash < 0) issues.push("business.cash cannot be negative");
   if (business.inventory < 0) issues.push("business.inventory cannot be negative");
