@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createBusiness, getPhase4CommandCenter, calculatePhase4Health, buildPhase4Attention, previewPhase4Decision, advancePhase4Day } from "@enterpriseverse/simulation";
+import { createBusiness } from "./index";
+import { getPhase4CommandCenter, calculatePhase4Health, buildPhase4Attention, previewPhase4Decision, advancePhase4Day } from "./phase4";
 
 function starter() {
   return createBusiness({
