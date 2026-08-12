@@ -24,6 +24,7 @@ export * from "./consequences";
 export * from "./scenarios";
 export * from "./replay";
 export * from "./assessment";
+export * from "./phase4";
 export type { BusinessAction } from "./operations";
 export type { IntegratedMetrics } from "./integration";
 export type { LearningAssessment, LearningDimension, LearningScore } from "./learning";
