@@ -17,7 +17,11 @@ export function explainCausality(chain: CausalChain): string {
 export function recommendDecision(decision: Decision): Decision["options"] {
   const riskWeight = { low: 3, medium: 2, high: 1 } as const;
   const confidenceWeight = { high: 3, medium: 2, low: 1 } as const;
-  return [...decision.options].sort((a, b) => riskWeight[b.risk] + confidenceWeight[b.confidence] - (riskWeight[a.risk] + confidenceWeight[a.confidence)));
+  return [...decision.options].sort((a, b) => {
+    const scoreA = riskWeight[a.risk] + confidenceWeight[a.confidence];
+    const scoreB = riskWeight[b.risk] + confidenceWeight[b.confidence];
+    return scoreB - scoreA || a.id.localeCompare(b.id);
+  });
 }
 
 export function remember(memory: MemoryEvent[], event: MemoryEvent, max = 100): MemoryEvent[] {
