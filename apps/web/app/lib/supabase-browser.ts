@@ -22,6 +22,7 @@ const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "") ?? "";
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() ?? "";
 const PRODUCTION_SITE_URL = "https://shlokbhatt347.github.io/EnterpriseVerse/";
+const SESSION_REFRESH_SAFETY_WINDOW_SECONDS = 60;
 
 export const supabaseConfigured = Boolean(url && anonKey);
 let refreshPromise: Promise<Session | null> | null = null;
@@ -84,7 +85,7 @@ async function refreshIfNeeded(): Promise<Session | null> {
   const current = readSession();
   if (!current) return null;
   const expiresAt = current.expires_at ?? Math.floor(Date.now() / 1000) + current.expires_in;
-  if (expiresAt - Math.floor(Date.now() / 1000) > 60) return current;
+  if (expiresAt - Math.floor(Date.now() / 1000) > SESSION_REFRESH_SAFETY_WINDOW_SECONDS) return current;
   refreshPromise = (async () => {
     try {
       const next = await request<Session>("/auth/v1/token?grant_type=refresh_token", { method: "POST", body: JSON.stringify({ refresh_token: current.refresh_token }) });
@@ -119,15 +120,12 @@ export async function restoreSessionFromUrl() {
 }
 
 export async function getCurrentUser(): Promise<BrowserUser | null> {
+  // The session persisted by Supabase already contains the user identity. Avoid an
+  // extra /auth/v1/user request on every page load; only refresh when the token is
+  // close to expiry. Authenticated data requests still carry the access token and
+  // remain server-authoritative.
   const current = await refreshIfNeeded();
-  if (!current) return null;
-  try {
-    const user = await request<Session["user"]>("/auth/v1/user", { method: "GET" }, current.access_token);
-    return userFromSession({ ...current, user });
-  } catch {
-    writeSession(null);
-    return null;
-  }
+  return current ? userFromSession(current) : null;
 }
 
 export async function signInWithEmail(email: string, password: string) {
