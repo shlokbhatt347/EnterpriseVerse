@@ -11,6 +11,7 @@ import ThemeToggle from "./theme-toggle";
 import AccountMenu from "./account-menu";
 import SaveSync from "./save-sync";
 import NotificationCenter from "./notification-center";
+import CommandPalette from "./command-palette";
 import { AuthProvider } from "./auth-provider";
 
 export const metadata: Metadata = {
@@ -31,6 +32,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <ThemeToggle />
           <NotificationCenter />
           <AccountMenu />
+          <CommandPalette />
           <SaveSync />
           <div id="main-content">{children}</div>
         </AuthProvider>

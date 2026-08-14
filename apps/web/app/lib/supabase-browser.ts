@@ -18,6 +18,7 @@ type Session = {
 type SaveRow = { save_key: string; payload: unknown; updated_at: string };
 
 const STORAGE_KEY = "enterpriseverse:supabase-session:v1";
+const REQUEST_TIMEOUT_MS = 12_000;
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "") ?? "";
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() ?? "";
@@ -69,15 +70,28 @@ async function request<T>(path: string, init: RequestInit = {}, token?: string):
   headers.set("apikey", anonKey);
   headers.set("Content-Type", "application/json");
   if (token) headers.set("Authorization", `Bearer ${token}`);
-  const response = await fetch(`${url}${path}`, { ...init, headers, cache: "no-store" });
-  const raw = await response.text();
-  let body: unknown = null;
-  try { body = raw ? JSON.parse(raw) : null; } catch { body = raw; }
-  if (!response.ok) {
-    const message = typeof body === "object" && body !== null && "msg" in body && typeof body.msg === "string" ? body.msg : typeof body === "object" && body !== null && "message" in body && typeof body.message === "string" ? body.message : typeof body === "object" && body !== null && "error_description" in body && typeof body.error_description === "string" ? body.error_description : `Supabase request failed (${response.status}).`;
-    throw new Error(message);
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(`${url}${path}`, { ...init, headers, cache: "no-store", signal: controller.signal });
+    const raw = await response.text();
+    let body: unknown = null;
+    try { body = raw ? JSON.parse(raw) : null; } catch { body = raw; }
+    if (!response.ok) {
+      const message = typeof body === "object" && body !== null && "msg" in body && typeof body.msg === "string" ? body.msg
+        : typeof body === "object" && body !== null && "message" in body && typeof body.message === "string" ? body.message
+        : typeof body === "object" && body !== null && "error_description" in body && typeof body.error_description === "string" ? body.error_description
+        : `Supabase request failed (${response.status}).`;
+      throw new Error(message);
+    }
+    return body as T;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw new Error("The cloud request took too long. Please try again.");
+    if (error instanceof TypeError && error.message === "Failed to fetch") throw new Error("Unable to reach the cloud service. Check your connection and try again.");
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
   }
-  return body as T;
 }
 
 async function refreshIfNeeded(): Promise<Session | null> {
@@ -89,6 +103,7 @@ async function refreshIfNeeded(): Promise<Session | null> {
   refreshPromise = (async () => {
     try {
       const next = await request<Session>("/auth/v1/token?grant_type=refresh_token", { method: "POST", body: JSON.stringify({ refresh_token: current.refresh_token }) });
+      if (!next?.access_token || !next?.refresh_token || !next?.user?.id) throw new Error("Invalid session refresh response.");
       writeSession(next);
       return next;
     } catch {
