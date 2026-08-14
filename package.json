@@ -6,6 +6,7 @@
     "dev:web": "pnpm --dir apps/web dev",
     "dev:api": "cd apps/api && uvicorn app.main:app --reload",
     "test:simulation": "pnpm --dir packages/simulation test",
+    "perf:simulation": "pnpm --dir packages/simulation exec vitest run src/performance-baseline.test.ts --reporter=verbose",
     "typecheck:simulation": "pnpm exec tsc --noEmit -p packages/simulation/tsconfig.json",
     "typecheck:web": "pnpm --dir apps/web exec tsc --noEmit",
     "build:web": "pnpm --dir apps/web build",
