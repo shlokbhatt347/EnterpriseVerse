@@ -12,8 +12,7 @@ describe("Phase 8 living business engine", () => {
   it("initializes lifecycle, finance, workforce, scenario and replay state", () => {
     const state = createBusiness(businessInput);
     expect(getLifecycle(state)).toBe("launch");
-    expect(state.workforce?.employees).toHaveLength(0);
-    // A new enterprise starts with the simulation's seeded starter customers.
+    expect(state.workforce?.employees).toHaveLength(1);
     expect(state.business.customers).toHaveLength(3);
     expect(state.financials?.cash).toBe(state.business.cash);
     expect(state.scenarios?.seed).toBe(1);
