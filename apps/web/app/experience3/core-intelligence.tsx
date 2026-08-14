@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 
 type Priority = 'critical' | 'high' | 'medium' | 'low';
 type Signal = { id: string; priority: Priority; kind: string; title: string; reason: string; day: number; entity: string };
@@ -24,7 +25,7 @@ export function DecisionTimeline({ events, onOpen }: { events: { id: string; day
   return <section className="ev-core-card"><div className="ev-core-head"><div><span className="ev-ds-eyebrow">DECISION MEMORY</span><h2>Your enterprise, remembered</h2><p>Decisions, outcomes and turning points in one timeline.</p></div></div><div className="ev-decision-timeline">{events.map((event) => <button type="button" key={event.id} onClick={() => onOpen?.(event)}><span>DAY {event.day}</span><div><small>{event.type}</small><b>{event.title}</b>{event.outcome && <p>{event.outcome}</p>}</div><i aria-hidden="true">→</i></button>)}</div></section>;
 }
 
-type Notification = { id: string; title: string; body: string; unread?: boolean; action?: React.ReactNode };
+type Notification = { id: string; title: string; body: string; unread?: boolean; action?: ReactNode };
 export function NotificationCenter({ notifications, onAction }: { notifications: Notification[]; onAction?: (id: string) => void }) {
   return <aside className="ev-core-card ev-notification-center"><div className="ev-core-head"><div><span className="ev-ds-eyebrow">NOTIFICATIONS</span><h2>Signals, not noise</h2></div></div>{notifications.map((n) => <article className={`ev-notification ${n.unread ? 'unread' : ''}`} key={n.id}><button type="button" className="ev-notification-main" onClick={() => onAction?.(n.id)}><span className="ev-notification-dot" aria-hidden="true" /><span><b>{n.title}</b><p>{n.body}</p></span></button>{n.action && <div className="ev-notification-action">{n.action}</div>}</article>)}</aside>;
 }
