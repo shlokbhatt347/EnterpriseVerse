@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { advanceDay, applyChoice, buildDecisionDebrief, getCoachInsight, getFounderProgress } from "@enterpriseverse/simulation";
 import type { SimulationChoice, SimulationState } from "@enterpriseverse/types";
 import { DecisionExperience, type DecisionOption } from "../decision-experience";
+import { ConsequenceMemory } from "../experience3/consequence-memory";
 import "./play.css";
 
 const SAVE_KEY = "enterpriseverse:active-business:v1";
@@ -39,7 +40,9 @@ function WhatIf({ state, choice, onApply }: { state: SimulationState; choice: Si
 
 export default function PlayPage() {
   const [state, setState] = useState<SimulationState | null>(null);
+  const [decisionBaseline, setDecisionBaseline] = useState<SimulationState | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
+  const [committedChoice, setCommittedChoice] = useState<SimulationChoice | null>(null);
   const [message, setMessage] = useState("");
   const [tab, setTab] = useState<Tab>("overview");
   const [showCoach, setShowCoach] = useState(true);
@@ -67,8 +70,14 @@ export default function PlayPage() {
 
   if (!state || !progress || !coach) return <main className="play-shell"><section className="empty-play"><span className="play-kicker">ENTERPRISEVERSE · FOUNDER MODE</span><h1>Start your first enterprise.</h1><p>Create a business on the main simulator first. Your saved company will automatically appear here.</p><a className="play-primary" href="/EnterpriseVerse/">Open simulator →</a></section></main>;
 
-  const commit = (choice: SimulationChoice) => { setSelected(choice.id); setMessage("Decision locked. The next move is yours."); setState((current) => current ? applyChoice(current, choice) : current); };
-  const endDay = () => { setSelected(null); setMessage("Day advanced. Customers, competitors and the market have reacted."); setState((current) => current ? advanceDay(current) : current); };
+  const commit = (choice: SimulationChoice) => {
+    setSelected(choice.id);
+    setDecisionBaseline(state);
+    setCommittedChoice(choice);
+    setMessage("Decision locked. Its consequences are now being remembered.");
+    setState((current) => current ? applyChoice(current, choice) : current);
+  };
+  const endDay = () => { setSelected(null); setCommittedChoice(null); setDecisionBaseline(null); setMessage("Day advanced. Customers, competitors and the market have reacted."); setState((current) => current ? advanceDay(current) : current); };
 
   return <main className="play-shell">
     <header className="play-topbar">
@@ -77,7 +86,7 @@ export default function PlayPage() {
       <div className="play-cash">{money(state.business.cash)}</div>
     </header>
     <nav className="p27-mobile-tabs" aria-label="Founder navigation">
-      {(["overview", "world", "founder"] as Tab[]).map((item) => <button key={item} type="button" className={tab === item ? "active" : ""} onClick={() => setTab(item)}>{item === "overview" ? "⌂ Command" : item === "world" ? "◈ World" : "◉ Founder"}</button>)}
+      {["overview", "world", "founder"].map((item) => <button key={item} type="button" className={tab === item ? "active" : ""} onClick={() => setTab(item as Tab)}>{item === "overview" ? "⌂ Command" : item === "world" ? "◈ World" : "◉ Founder"}</button>)}
     </nav>
     <div className="play-grid">
       <aside className={`play-sidebar ${tab === "founder" ? "p27-mobile-visible" : ""}`}>
@@ -94,6 +103,8 @@ export default function PlayPage() {
         {showCoach ? <section className={`coach coach-${coach.priority} p27-coach`}><div className="coach-icon">✦</div><div><span>FOUNDER COACH · {skillLabels[coach.skill].toUpperCase()}</span><h2>{coach.headline}</h2><p>{coach.explanation}</p><strong>Try this: {coach.action}</strong></div><button type="button" className="p27-dismiss" onClick={() => setShowCoach(false)} aria-label="Dismiss coach">×</button></section> : <button type="button" className="p27-coach-return" onClick={() => setShowCoach(true)}>✦ Show Founder Coach</button>}
 
         {event ? <section className="decision-card p27-decision-card"><DecisionExperience situation={event.title} context={<><p>{event.message}</p><span className="p27-decision-meta">DAY {event.day} · {event.choices.length} STRATEGIC OPTIONS</span></>} options={decisionOptions} onConfirm={(option) => { const choice = event.choices.find((item) => item.id === option.id); if (choice) commit(choice); }} consequence={debrief ? <div className="p27-consequence-grid"><div><span>DECISION QUALITY</span><strong>{debrief.score}/100</strong></div><div><span>CONSEQUENCE</span><p>{debrief.consequence}</p></div><div><span>LESSON</span><p>{debrief.lesson}</p></div></div> : null} />{chosen ? <WhatIf state={state} choice={chosen} onApply={commit} /> : null}</section> : <section className="complete-card p27-complete"><span className="play-kicker">DAY COMPLETE</span><h2>Your decisions are now in the world.</h2><p>Advance the simulation to let customers, competitors, the market and your operations respond.</p><button type="button" className="play-primary" onClick={endDay}>Advance to the next day →</button></section>}
+
+        {committedChoice ? <ConsequenceMemory state={state} selectedChoice={committedChoice} expectedState={decisionBaseline} /> : null}
 
         <div className="play-actions"><span role="status" aria-live="polite">{message}</span><button type="button" className="play-primary" onClick={endDay} disabled={Boolean(event && !selected)}>End Day & See What Happens →</button></div>
 
