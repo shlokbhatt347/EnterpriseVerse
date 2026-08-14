@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import type { SimulationChoice, SimulationState } from '@enterpriseverse/types';
 
 type DecisionRecord = {
   id: string;
@@ -13,40 +14,71 @@ type DecisionRecord = {
   outcome: 'success' | 'mixed' | 'warning';
 };
 
-const demoRecords: DecisionRecord[] = [
-  {
-    id: 'quality', day: 42, title: 'Invested in quality', action: 'QUALITY_INVEST', reason: 'Protect customer trust while improving product value.',
-    expected: [{ label: 'Quality', value: '+10%' }, { label: 'Demand', value: '+5%' }, { label: 'Cash', value: '-2%' }],
-    actual: [{ label: 'Quality', value: '+14%' }, { label: 'Demand', value: '+7%' }, { label: 'Cash', value: '-5%' }], outcome: 'success',
-  },
-  {
-    id: 'price', day: 35, title: 'Raised price', action: 'PRICE_CHANGE', reason: 'Improve margin without losing too much demand.',
-    expected: [{ label: 'Revenue', value: '+8%' }, { label: 'Margin', value: '+4%' }, { label: 'Demand', value: '-5%' }],
-    actual: [{ label: 'Revenue', value: '+3%' }, { label: 'Margin', value: '+6%' }, { label: 'Demand', value: '-9%' }], outcome: 'mixed',
-  },
-];
+type Props = {
+  state: SimulationState;
+  selectedChoice?: SimulationChoice | null;
+  expectedState?: SimulationState | null;
+};
 
-export function ConsequenceMemory({ day }: { day: number }) {
-  const [records, setRecords] = useState<DecisionRecord[]>(demoRecords);
+const MEMORY_KEY = 'enterpriseverse:decision-memory:v1';
+
+const money = (value: number) => `₹${Math.round(value).toLocaleString('en-IN')}`;
+const delta = (before: number, after: number) => `${after - before >= 0 ? '+' : ''}${(after - before).toFixed(1)}`;
+
+function recordFromChoice(choice: SimulationChoice, state: SimulationState, expectedState?: SimulationState | null): DecisionRecord {
+  const baseline = expectedState ?? state;
+  const cashDelta = state.business.cash - baseline.business.cash;
+  const reputationDelta = state.business.reputation - baseline.business.reputation;
+  const shareDelta = state.business.marketShare - baseline.business.marketShare;
+  const expectedCash = choice.effects.cash ?? 0;
+  const outcome: DecisionRecord['outcome'] = cashDelta >= expectedCash ? 'success' : cashDelta >= expectedCash - 500 ? 'mixed' : 'warning';
+  return {
+    id: `${choice.id}-day-${state.business.day}-${Date.now()}`,
+    day: state.business.day,
+    title: choice.label,
+    action: choice.id,
+    reason: 'Committed from the live Decision Theater.',
+    expected: [
+      { label: 'Cash', value: expectedCash >= 0 ? `+${money(expectedCash)}` : `-${money(Math.abs(expectedCash))}` },
+      { label: 'Reputation', value: `${(choice.effects.reputation ?? 0) >= 0 ? '+' : ''}${choice.effects.reputation ?? 0}` },
+      { label: 'Market share', value: `${(choice.effects.marketShare ?? 0) >= 0 ? '+' : ''}${choice.effects.marketShare ?? 0}` },
+    ],
+    actual: [
+      { label: 'Cash', value: delta(baseline.business.cash, state.business.cash) },
+      { label: 'Reputation', value: delta(baseline.business.reputation, state.business.reputation) },
+      { label: 'Market share', value: delta(baseline.business.marketShare, state.business.marketShare) },
+    ],
+    outcome,
+  };
+}
+
+export function ConsequenceMemory({ state, selectedChoice, expectedState }: Props) {
+  const [records, setRecords] = useState<DecisionRecord[]>([]);
   const [selected, setSelected] = useState<DecisionRecord | null>(null);
   const [tab, setTab] = useState<'timeline' | 'compare'>('timeline');
 
-  const timeline = useMemo(() => [...records].sort((a, b) => b.day - a.day), [records]);
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(MEMORY_KEY);
+      if (raw) setRecords(JSON.parse(raw) as DecisionRecord[]);
+    } catch {
+      window.localStorage.removeItem(MEMORY_KEY);
+    }
+  }, []);
 
-  function recordDecision() {
-    const next: DecisionRecord = {
-      id: `decision-${Date.now()}`,
-      day,
-      title: 'Decision committed',
-      action: 'STRATEGIC_DECISION',
-      reason: 'Recorded from the Decision Theater.',
-      expected: [{ label: 'Confidence', value: 'Medium' }, { label: 'Risk', value: 'Tracked' }],
-      actual: [{ label: 'Status', value: 'Awaiting effects' }, { label: 'Memory', value: 'Created' }],
-      outcome: 'mixed',
-    };
-    setRecords((current) => [next, ...current]);
+  useEffect(() => {
+    if (!selectedChoice) return;
+    const next = recordFromChoice(selectedChoice, state, expectedState);
+    setRecords((current) => {
+      const withoutDuplicate = current.filter((record) => record.id.split('-day-')[0] !== selectedChoice.id || record.day !== state.business.day);
+      const merged = [next, ...withoutDuplicate].slice(0, 50);
+      window.localStorage.setItem(MEMORY_KEY, JSON.stringify(merged));
+      return merged;
+    });
     setSelected(next);
-  }
+  }, [selectedChoice, state, expectedState]);
+
+  const timeline = useMemo(() => [...records].sort((a, b) => b.day - a.day), [records]);
 
   return (
     <section className="ev-memory">
@@ -54,9 +86,9 @@ export function ConsequenceMemory({ day }: { day: number }) {
         <div>
           <span className="ev-eyebrow">DECISION MEMORY</span>
           <h2>Consequence Theater</h2>
-          <p>Turn every major decision into a learning loop: expected → actual → consequence → memory.</p>
+          <p>Every committed decision is compared against the live company state and remembered across sessions.</p>
         </div>
-        <button className="ev-primary" onClick={recordDecision}>Record current decision</button>
+        <span className="ev-memory-count">{records.length} decisions remembered</span>
       </div>
 
       <div className="ev-memory-tabs">
@@ -64,12 +96,13 @@ export function ConsequenceMemory({ day }: { day: number }) {
         <button className={tab === 'compare' ? 'active' : ''} onClick={() => setTab('compare')}>Expected vs actual</button>
       </div>
 
-      {tab === 'timeline' ? (
+      {timeline.length === 0 ? (
+        <div className="ev-empty"><strong>Your decision history starts here.</strong><span>Commit a strategic decision and its consequences will be captured automatically.</span></div>
+      ) : tab === 'timeline' ? (
         <div className="ev-timeline">
           {timeline.map((record) => (
             <button key={record.id} className="ev-memory-card" onClick={() => setSelected(record)}>
-              <span className="ev-day">DAY {record.day}</span>
-              <span className="ev-memory-dot" />
+              <span className="ev-day">DAY {record.day}</span><span className="ev-memory-dot" />
               <div><strong>{record.title}</strong><small>{record.reason}</small></div>
               <span className={`ev-outcome ${record.outcome}`}>{record.outcome}</span>
             </button>
@@ -77,10 +110,13 @@ export function ConsequenceMemory({ day }: { day: number }) {
         </div>
       ) : (
         <div className="ev-compare-grid">
-          {timeline.slice(0, 4).map((record) => (
+          {timeline.slice(0, 8).map((record) => (
             <article className="ev-compare" key={record.id}>
               <div className="ev-compare-title"><strong>{record.title}</strong><span>Day {record.day}</span></div>
-              <div className="ev-compare-columns"><div><small>EXPECTED</small>{record.expected.map((item) => <p key={item.label}><span>{item.label}</span><b>{item.value}</b></p>)}</div><div><small>ACTUAL</small>{record.actual.map((item) => <p key={item.label}><span>{item.label}</span><b>{item.value}</b></p>)}</div></div>
+              <div className="ev-compare-columns">
+                <div><small>EXPECTED</small>{record.expected.map((item) => <p key={item.label}><span>{item.label}</span><b>{item.value}</b></p>)}</div>
+                <div><small>ACTUAL</small>{record.actual.map((item) => <p key={item.label}><span>{item.label}</span><b>{item.value}</b></p>)}</div>
+              </div>
             </article>
           ))}
         </div>
