@@ -1,11 +1,12 @@
 import type { Business, DecisionOutcome, EntrepreneurProfile, RunAssessment } from "@enterpriseverse/types";
 
 const clamp = (v: number) => Math.max(0, Math.min(100, v));
-export function scoreDecisionOutcome(decisionId: string, label: string, day: number, effects: Record<string, number>): DecisionOutcome {
-  const positive = Object.entries(effects).reduce((sum, [key, value]) => sum + (key === "cash" || key === "revenue" || key === "reputation" || key === "marketShare" ? value : 0), 0);
+export function scoreDecisionOutcome(decisionId: string, label: string, day: number, effects: Record<string, number> = {}): DecisionOutcome {
+  const safeEffects = effects ?? {};
+  const positive = Object.entries(safeEffects).reduce((sum, [key, value]) => sum + (key === "cash" || key === "revenue" || key === "reputation" || key === "marketShare" ? value : 0), 0);
   const score = clamp(50 + positive / 10);
   const explanation = positive >= 0 ? "The decision created a measurable positive business effect." : "The decision created a measurable cost or risk that should be monitored.";
-  return { decisionId, label, day, effects, score, explanation };
+  return { decisionId, label, day, effects: safeEffects, score, explanation };
 }
 
 export function assessRun(business: Business, outcomes: DecisionOutcome[] = []): RunAssessment {
