@@ -1,46 +1,42 @@
 'use client';
 
+import { useMemo, useState } from "react";
 import type { SimulationState } from "@enterpriseverse/types";
-import { calculateKpis } from "@enterpriseverse/simulation";
+import { buildAttentionSignals, buildCausalChain, buildDecisionMemory, buildNotifications, compareWave2Scenario, searchEnterprise, calculateKpis } from "@enterpriseverse/simulation";
 import { AttentionQueue, CausalChain, DecisionTimeline, IntelligenceSearch, NotificationCenter, ScenarioCompare } from "./core-intelligence";
 import { SectionHeader, Surface } from "./design-system";
 
 const money = (value: number) => `₹${Math.round(value).toLocaleString("en-IN")}`;
 
-type Signal = { id: string; priority: "critical" | "high" | "medium" | "low"; kind: string; title: string; reason: string; day: number; entity: string };
-type Decision = { id: string; day: number; type: string; title: string; outcome?: string };
+type Signal = ReturnType<typeof buildAttentionSignals>[number];
+type Decision = ReturnType<typeof buildDecisionMemory>[number];
 
 export function IntelligenceLayer({ state, onAttention, onDecision, onScenario }: { state: SimulationState; onAttention?: (signal: Signal) => void; onDecision?: (event: Decision) => void; onScenario?: (id: string) => void }) {
-  const kpis = calculateKpis(state);
-  const signals: Signal[] = [
-    ...(state.events ?? []).map((event, index) => ({ id: event.id, priority: index === 0 ? "high" as const : "medium" as const, kind: "WORLD EVENT", title: event.title, reason: event.message, day: event.day, entity: state.business.name })),
-    ...(kpis.cashRunwayDays < 14 ? [{ id: "cash-runway", priority: "critical" as const, kind: "FINANCE", title: "Cash runway is tightening", reason: `${kpis.cashRunwayDays} days of runway remain.`, day: state.business.day, entity: state.business.name }] : []),
-    ...(state.business.marketShare < 10 ? [{ id: "market-share", priority: "high" as const, kind: "MARKET", title: "Market position needs attention", reason: `Market share is ${state.business.marketShare.toFixed(1)}%.`, day: state.business.day, entity: state.business.name }] : []),
-  ];
-  const decisions: Decision[] = (state.replay?.decisions ?? []).map((choice, index) => ({ id: `${choice}-${index}`, day: index + 1, type: "DECISION", title: choice, outcome: "Recorded in enterprise memory." }));
+  const [query, setQuery] = useState("");
+  const signals = useMemo(() => buildAttentionSignals(state), [state]);
+  const decisions = useMemo(() => buildDecisionMemory(state), [state]);
+  const notifications = useMemo(() => buildNotifications(state), [state]);
+  const searchResults = useMemo(() => searchEnterprise(state, query), [state, query]);
+  const kpis = useMemo(() => calculateKpis(state), [state]);
   const baseline = [
     { label: "Cash", value: money(state.business.cash) },
     { label: "Revenue", value: money(state.business.revenue) },
     { label: "Share", value: `${state.business.marketShare.toFixed(1)}%` },
   ];
-  const scenarios = [
-    { id: "price-up", name: "Raise price", values: [money(state.business.cash), money(Math.max(0, state.business.revenue * 1.08)), `${Math.max(0, state.business.marketShare - 0.6).toFixed(1)}%`], delta: "margin ↑ / demand ↓" },
-    { id: "quality-up", name: "Invest in quality", values: [money(Math.max(0, state.business.cash - 1000)), money(state.business.revenue * 1.05), `${(state.business.marketShare + 0.4).toFixed(1)}%`], delta: "cash ↓ / reputation ↑" },
-    { id: "marketing", name: "Increase marketing", values: [money(Math.max(0, state.business.cash - 1000)), money(state.business.revenue * 1.12), `${(state.business.marketShare + 0.8).toFixed(1)}%`], delta: "cash ↓ / demand ↑" },
+  const scenarioInputs = [
+    { id: "price-up", name: "Raise price", input: { priceDeltaPct: 8 } },
+    { id: "quality-up", name: "Invest in quality", input: { qualityInvestment: 1000 } },
+    { id: "marketing", name: "Increase marketing", input: { marketingBudget: 2000 } },
   ];
-  const causalNodes = [
-    { id: "market", label: "Market pressure", value: `${state.market?.demandIndex ?? 100}`, description: state.market?.trend ?? "stable" },
-    { id: "demand", label: "Demand", value: `${state.market?.demandIndex ?? 100}` },
-    { id: "revenue", label: "Revenue", value: money(state.business.revenue) },
-    { id: "costs", label: "Expenses", value: money(state.business.expenses) },
-    { id: "profit", label: "Profit", value: money(kpis.profit) },
-  ];
+  const scenarios = scenarioInputs.map((scenario) => { const result = compareWave2Scenario(state, scenario.input); return { id: scenario.id, name: scenario.name, values: [money(result.projected.cash), money(result.projected.revenue), `${result.projected.marketShare.toFixed(1)}%`], delta: result.warnings[0] ?? `${result.confidence} confidence` }; });
+  const causalNodes = buildCausalChain(state, kpis.cashRunwayDays < 30 ? "cash" : "revenue");
   return <div className="ev-intelligence-layer">
-    <Surface className="ev-intelligence-hero"><SectionHeader eyebrow="ENTERPRISE INTELLIGENCE" title="Understand the system before you act." description="Wave 2 connects the cockpit to live simulation state: attention, causality, scenarios, decisions, notifications and search." /><IntelligenceSearch onSearch={() => undefined} /></Surface>
+    <Surface className="ev-intelligence-hero"><SectionHeader eyebrow="ENTERPRISE INTELLIGENCE" title="Understand the system before you act." description="Wave 2 is driven by live simulation state: ranked attention, causal context, safe scenarios, decision memory, notifications and enterprise search." /><IntelligenceSearch onSearch={setQuery} /></Surface>
+    {query && <Surface className="ev-search-results"><SectionHeader eyebrow="SEARCH" title={`${searchResults.length} result${searchResults.length === 1 ? "" : "s"}`} description="Ranked across business, customers, suppliers, events, decisions and metrics." />{searchResults.map((result) => <button type="button" className="ev-search-result" key={`${result.type}-${result.id}`}><b>{result.title}</b><small>{result.type.toUpperCase()} · {result.detail}</small></button>)}</Surface>}
     <AttentionQueue signals={signals} onOpen={onAttention} />
     <CausalChain nodes={causalNodes} />
     <ScenarioCompare baseline={baseline} scenarios={scenarios} onSelect={onScenario} />
     <DecisionTimeline events={decisions} onOpen={onDecision} />
-    <NotificationCenter notifications={signals.slice(0, 5).map((signal) => ({ id: signal.id, title: signal.title, body: signal.reason, unread: signal.priority === "critical" || signal.priority === "high" }))} />
+    <NotificationCenter notifications={notifications} />
   </div>;
 }
