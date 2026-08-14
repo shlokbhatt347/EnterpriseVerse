@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { advanceDay, createBusiness } from "./index";
+import { advanceDay, calculateKpis, createBusiness } from "./index";
 
 const ITERATIONS = 100;
 
@@ -29,7 +29,7 @@ describe("performance baseline", () => {
     console.info(`[perf-baseline] createBusiness: ${elapsedMs.toFixed(2)}ms total / ${(elapsedMs / ITERATIONS).toFixed(3)}ms avg over ${ITERATIONS} iterations`);
   });
 
-  it("measures one full simulation day", () => {
+  it("measures one full simulation day and KPI derivation", () => {
     let state = createBusiness({
       name: "Baseline Co",
       idea: "A performance benchmark business",
@@ -40,15 +40,18 @@ describe("performance baseline", () => {
 
     // Warm up module code paths before timing the hot path.
     state = advanceDay(state);
+    calculateKpis(state.business, state.operations);
 
     const started = performance.now();
     for (let i = 0; i < ITERATIONS; i += 1) {
       state = advanceDay(state);
+      calculateKpis(state.business, state.operations);
     }
     const elapsedMs = performance.now() - started;
 
-    expect(state.business.day).toBe(ITERATIONS + 1);
+    // The warm-up advances the business once before the timed 100 iterations.
+    expect(state.business.day).toBe(ITERATIONS + 2);
     expect(Number.isFinite(state.business.cash)).toBe(true);
-    console.info(`[perf-baseline] advanceDay: ${elapsedMs.toFixed(2)}ms total / ${(elapsedMs / ITERATIONS).toFixed(3)}ms avg over ${ITERATIONS} iterations`);
+    console.info(`[perf-baseline] advanceDay + calculateKpis: ${elapsedMs.toFixed(2)}ms total / ${(elapsedMs / ITERATIONS).toFixed(3)}ms avg over ${ITERATIONS} iterations`);
   });
 });
