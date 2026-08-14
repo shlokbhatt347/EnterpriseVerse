@@ -1,41 +1,24 @@
-import type { Business, Employee, EmployeeRole, OperationsState, WorkforceState } from "@enterpriseverse/types";
+import type { Business, CharacterMemory, Employee, EmployeeRole, OperationsState, WorkforceState } from "@enterpriseverse/types";
 
 const roles: EmployeeRole[] = ["operations", "sales", "marketing", "finance", "product", "generalist"];
 const clamp = (v: number) => Math.max(0, Math.min(100, v));
 
-export function createWorkforce(day = 1): WorkforceState {
-  return { employees: [], hiringBudget: 5_000, trainingBudget: 2_000, turnoverRisk: 0, productivityIndex: 0, moraleIndex: 0, payroll: 0 };
-}
+type LivingEmployee = Employee & { goals: string[]; trust: number; relationship: number; mood: "happy" | "neutral" | "concerned" | "angry" | "excited" | "competitive" | "confident"; memories: CharacterMemory[] };
 
-export function hireEmployee(state: WorkforceState, name: string, role: EmployeeRole, day: number, salary = 300): WorkforceState {
-  if (!name.trim() || !roles.includes(role) || state.hiringBudget < salary) return state;
-  const employee: Employee = { id: `employee-${state.employees.length + 1}-d${day}`, name: name.trim(), role, salary, skill: 50, morale: 70, productivity: 60, loyalty: 50, workload: 50, employedDay: day };
-  return recalculate({ ...state, employees: [...state.employees, employee], hiringBudget: state.hiringBudget - salary });
-}
+const maya = (day: number): LivingEmployee => ({ id: "employee-maya-product", name: "Maya", role: "product", salary: 650, skill: 68, morale: 74, productivity: 72, loyalty: 62, workload: 48, employedDay: day, goals: ["Improve product quality", "Grow the customer experience team"], trust: 70, relationship: 62, mood: "confident", memories: [{ day, summary: "Joined as the founding product manager and committed to product quality.", sentiment: 0.7 }] });
 
-export function trainEmployee(state: WorkforceState, employeeId: string, day: number, cost = 250): WorkforceState {
-  if (state.trainingBudget < cost) return state;
-  const employees = state.employees.map((e) => e.id === employeeId ? { ...e, skill: clamp(e.skill + 8), productivity: clamp(e.productivity + 6), morale: clamp(e.morale + 2) } : e);
-  return recalculate({ ...state, employees, trainingBudget: state.trainingBudget - cost });
+function recalculate(state: WorkforceState): WorkforceState { const payroll = state.employees.reduce((sum, e) => sum + e.salary, 0); const moraleIndex = state.employees.length ? state.employees.reduce((sum, e) => sum + e.morale, 0) / state.employees.length : 0; const productivityIndex = state.employees.length ? state.employees.reduce((sum, e) => sum + e.productivity, 0) / state.employees.length : 0; return { ...state, payroll, moraleIndex, productivityIndex }; }
+
+export function createWorkforce(day = 1): WorkforceState { return recalculate({ employees: [maya(day)], hiringBudget: 5_000, trainingBudget: 2_000, turnoverRisk: 0, productivityIndex: 0, moraleIndex: 0, payroll: 0 }); }
+
+export function hireEmployee(state: WorkforceState, name: string, role: EmployeeRole, day: number, salary = 300): WorkforceState { if (!name.trim() || !roles.includes(role) || state.hiringBudget < salary) return state; const employee: Employee = { id: `employee-${state.employees.length + 1}-d${day}`, name: name.trim(), role, salary, skill: 50, morale: 70, productivity: 60, loyalty: 50, workload: 50, employedDay: day }; return recalculate({ ...state, employees: [...state.employees, employee], hiringBudget: state.hiringBudget - salary }); }
+
+export function trainEmployee(state: WorkforceState, employeeId: string, day: number, cost = 250): WorkforceState { if (state.trainingBudget < cost) return state; const employees = state.employees.map((e) => e.id === employeeId ? { ...e, skill: clamp(e.skill + 8), productivity: clamp(e.productivity + 6), morale: clamp(e.morale + 2), ...(e.id === "employee-maya-product" ? { trust: clamp(((e as LivingEmployee).trust ?? 70) + 2), relationship: clamp(((e as LivingEmployee).relationship ?? 62) + 1), memories: [...((e as LivingEmployee).memories ?? []), { day, summary: "You invested in Maya's professional development.", sentiment: 0.8 }].slice(-8), mood: "excited" as const } : {}) } : e); return recalculate({ ...state, employees, trainingBudget: state.trainingBudget - cost }); }
+
+export function interactWithEmployee(state: WorkforceState, employeeId: string, day: number, interaction: "support" | "challenge" | "listen" | "reject"): WorkforceState {
+  const employees = state.employees.map((employee) => { if (employee.id !== employeeId) return employee; const living = employee as LivingEmployee; const effects = { support: { trust: 5, relationship: 4, morale: 3, loyalty: 2, sentiment: 0.8, mood: "excited" as const, summary: "You supported Maya's product direction." }, challenge: { trust: 1, relationship: 2, morale: -1, loyalty: 0, sentiment: 0.2, mood: "confident" as const, summary: "You challenged Maya to justify the product direction with evidence." }, listen: { trust: 4, relationship: 5, morale: 4, loyalty: 2, sentiment: 0.9, mood: "happy" as const, summary: "You listened to Maya's concerns about the product team." }, reject: { trust: -7, relationship: -8, morale: -4, loyalty: -3, sentiment: -0.8, mood: "concerned" as const, summary: "You rejected Maya's request without changing the plan." } }[interaction]; const memories = [...(living.memories ?? []), { day, summary: effects.summary, sentiment: effects.sentiment }].slice(-8); return { ...employee, trust: clamp((living.trust ?? 70) + effects.trust), relationship: clamp((living.relationship ?? 62) + effects.relationship), morale: clamp(employee.morale + effects.morale), loyalty: clamp(employee.loyalty + effects.loyalty), mood: effects.mood, memories } as LivingEmployee; }); return recalculate({ ...state, employees });
 }
 
 export function advanceWorkforce(state: WorkforceState, operations: OperationsState, business: Business): WorkforceState {
-  const employees = state.employees.map((employee) => {
-    const workload = clamp(operations.productionCapacity > 0 ? 45 + operations.employees * 3 : 70);
-    const moraleDelta = workload > 75 ? -3 : workload < 35 ? -1 : 1;
-    const productivity = clamp(employee.productivity + (employee.skill - 50) * 0.04 + (employee.morale - 50) * 0.03 - Math.max(0, workload - 70) * 0.05);
-    return { ...employee, workload, morale: clamp(employee.morale + moraleDelta), productivity };
-  });
-  const payroll = employees.reduce((sum, employee) => sum + employee.salary, 0);
-  const moraleIndex = employees.length ? employees.reduce((sum, e) => sum + e.morale, 0) / employees.length : 0;
-  const productivityIndex = employees.length ? employees.reduce((sum, e) => sum + e.productivity, 0) / employees.length : 0;
-  const turnoverRisk = employees.length ? clamp(employees.reduce((sum, e) => sum + Math.max(0, e.workload - 70) + Math.max(0, 55 - e.morale), 0) / employees.length) : 0;
-  return { ...state, employees, payroll, moraleIndex, productivityIndex, turnoverRisk };
-}
-
-function recalculate(state: WorkforceState): WorkforceState {
-  const payroll = state.employees.reduce((sum, e) => sum + e.salary, 0);
-  const moraleIndex = state.employees.length ? state.employees.reduce((sum, e) => sum + e.morale, 0) / state.employees.length : 0;
-  const productivityIndex = state.employees.length ? state.employees.reduce((sum, e) => sum + e.productivity, 0) / state.employees.length : 0;
-  return { ...state, payroll, moraleIndex, productivityIndex };
+  const employees = state.employees.map((employee) => { const living = employee as Partial<LivingEmployee>; const workload = clamp(operations.productionCapacity > 0 ? 45 + operations.employees * 3 : 70); const moraleDelta = workload > 75 ? -3 : workload < 35 ? -1 : 1; const productivity = clamp(employee.productivity + (employee.skill - 50) * 0.04 + (employee.morale - 50) * 0.03 - Math.max(0, workload - 70) * 0.05); const relationshipDelta = workload > 80 ? -2 : operations.quality >= 70 ? 1 : 0; const trust = living.trust === undefined ? undefined : clamp(living.trust + (business.reputation >= 60 ? 1 : -0.5)); const relationship = living.relationship === undefined ? undefined : clamp(living.relationship + relationshipDelta); const mood = workload > 82 ? "concerned" : employee.morale > 80 ? "excited" : employee.morale < 45 ? "concerned" : (living.mood ?? "neutral"); const memories = living.memories ? [...living.memories, ...(relationshipDelta !== 0 ? [{ day: business.day, summary: relationshipDelta > 0 ? "The business is reinforcing Maya's confidence in the product direction." : "Workload pressure is affecting Maya's confidence.", sentiment: relationshipDelta > 0 ? 0.4 : -0.5 }] : [])].slice(-8) : undefined; return { ...employee, workload, morale: clamp(employee.morale + moraleDelta), productivity, ...(living.trust !== undefined ? { trust } : {}), ...(living.relationship !== undefined ? { relationship } : {}), ...(living.mood !== undefined ? { mood } : {}), ...(memories ? { memories } : {}) } as Employee; }); const payroll = employees.reduce((sum, employee) => sum + employee.salary, 0); const moraleIndex = employees.length ? employees.reduce((sum, e) => sum + e.morale, 0) / employees.length : 0; const productivityIndex = employees.length ? employees.reduce((sum, e) => sum + e.productivity, 0) / employees.length : 0; const turnoverRisk = employees.length ? clamp(employees.reduce((sum, e) => sum + Math.max(0, e.workload - 70) + Math.max(0, 55 - e.morale), 0) / employees.length) : 0; return { ...state, employees, payroll, moraleIndex, productivityIndex, turnoverRisk };
 }
