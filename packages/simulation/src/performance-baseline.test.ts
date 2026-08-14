@@ -40,12 +40,12 @@ describe("performance baseline", () => {
 
     // Warm up module code paths before timing the hot path.
     state = advanceDay(state);
-    calculateKpis(state.business, state.operations);
+    calculateKpis(state);
 
     const started = performance.now();
     for (let i = 0; i < ITERATIONS; i += 1) {
       state = advanceDay(state);
-      calculateKpis(state.business, state.operations);
+      calculateKpis(state);
     }
     const elapsedMs = performance.now() - started;
 
