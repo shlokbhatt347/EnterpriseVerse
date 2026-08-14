@@ -6,10 +6,12 @@ import "./phase24-experience.css";
 import "./phase27-premium.css";
 import "./ui/primitives.css";
 import "./account-menu.css";
+import "./infinity-ui.css";
 import ThemeToggle from "./theme-toggle";
 import AccountMenu from "./account-menu";
 import SaveSync from "./save-sync";
 import NotificationCenter from "./notification-center";
+import CommandPalette from "./command-palette";
 import { AuthProvider } from "./auth-provider";
 
 export const metadata: Metadata = {
@@ -18,7 +20,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#070b14",
+  themeColor: "#05070b",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -30,6 +32,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <ThemeToggle />
           <NotificationCenter />
           <AccountMenu />
+          <CommandPalette />
           <SaveSync />
           <div id="main-content">{children}</div>
         </AuthProvider>

@@ -18,10 +18,12 @@ type Session = {
 type SaveRow = { save_key: string; payload: unknown; updated_at: string };
 
 const STORAGE_KEY = "enterpriseverse:supabase-session:v1";
+const REQUEST_TIMEOUT_MS = 12_000;
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "") ?? "";
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() ?? "";
 const PRODUCTION_SITE_URL = "https://shlokbhatt347.github.io/EnterpriseVerse/";
+const SESSION_REFRESH_SAFETY_WINDOW_SECONDS = 60;
 
 export const supabaseConfigured = Boolean(url && anonKey);
 let refreshPromise: Promise<Session | null> | null = null;
@@ -68,15 +70,28 @@ async function request<T>(path: string, init: RequestInit = {}, token?: string):
   headers.set("apikey", anonKey);
   headers.set("Content-Type", "application/json");
   if (token) headers.set("Authorization", `Bearer ${token}`);
-  const response = await fetch(`${url}${path}`, { ...init, headers, cache: "no-store" });
-  const raw = await response.text();
-  let body: unknown = null;
-  try { body = raw ? JSON.parse(raw) : null; } catch { body = raw; }
-  if (!response.ok) {
-    const message = typeof body === "object" && body !== null && "msg" in body && typeof body.msg === "string" ? body.msg : typeof body === "object" && body !== null && "message" in body && typeof body.message === "string" ? body.message : typeof body === "object" && body !== null && "error_description" in body && typeof body.error_description === "string" ? body.error_description : `Supabase request failed (${response.status}).`;
-    throw new Error(message);
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(`${url}${path}`, { ...init, headers, cache: "no-store", signal: controller.signal });
+    const raw = await response.text();
+    let body: unknown = null;
+    try { body = raw ? JSON.parse(raw) : null; } catch { body = raw; }
+    if (!response.ok) {
+      const message = typeof body === "object" && body !== null && "msg" in body && typeof body.msg === "string" ? body.msg
+        : typeof body === "object" && body !== null && "message" in body && typeof body.message === "string" ? body.message
+        : typeof body === "object" && body !== null && "error_description" in body && typeof body.error_description === "string" ? body.error_description
+        : `Supabase request failed (${response.status}).`;
+      throw new Error(message);
+    }
+    return body as T;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw new Error("The cloud request took too long. Please try again.");
+    if (error instanceof TypeError && error.message === "Failed to fetch") throw new Error("Unable to reach the cloud service. Check your connection and try again.");
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
   }
-  return body as T;
 }
 
 async function refreshIfNeeded(): Promise<Session | null> {
@@ -84,10 +99,11 @@ async function refreshIfNeeded(): Promise<Session | null> {
   const current = readSession();
   if (!current) return null;
   const expiresAt = current.expires_at ?? Math.floor(Date.now() / 1000) + current.expires_in;
-  if (expiresAt - Math.floor(Date.now() / 1000) > 60) return current;
+  if (expiresAt - Math.floor(Date.now() / 1000) > SESSION_REFRESH_SAFETY_WINDOW_SECONDS) return current;
   refreshPromise = (async () => {
     try {
       const next = await request<Session>("/auth/v1/token?grant_type=refresh_token", { method: "POST", body: JSON.stringify({ refresh_token: current.refresh_token }) });
+      if (!next?.access_token || !next?.refresh_token || !next?.user?.id) throw new Error("Invalid session refresh response.");
       writeSession(next);
       return next;
     } catch {
@@ -119,15 +135,12 @@ export async function restoreSessionFromUrl() {
 }
 
 export async function getCurrentUser(): Promise<BrowserUser | null> {
+  // The session persisted by Supabase already contains the user identity. Avoid an
+  // extra /auth/v1/user request on every page load; only refresh when the token is
+  // close to expiry. Authenticated data requests still carry the access token and
+  // remain server-authoritative.
   const current = await refreshIfNeeded();
-  if (!current) return null;
-  try {
-    const user = await request<Session["user"]>("/auth/v1/user", { method: "GET" }, current.access_token);
-    return userFromSession({ ...current, user });
-  } catch {
-    writeSession(null);
-    return null;
-  }
+  return current ? userFromSession(current) : null;
 }
 
 export async function signInWithEmail(email: string, password: string) {
