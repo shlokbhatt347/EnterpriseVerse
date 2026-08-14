@@ -1,29 +1,60 @@
-import type { Business, Customer, SimulationChoice, SimulationState, Product } from "@enterpriseverse/types";
-import { STARTING_CASH, STRUCTURE_EXPENSE, clamp, defaultOperations, getLifecycleStage, starterCustomers, starterSuppliers, createMarketState, advanceMarket, explainMarketPosition } from "./core";
+import type { Business, BusinessStructure, CharacterMemory, Customer, EconomyState, Product, SimulationChoice, SimulationEvent, SimulationState, Supplier } from "@enterpriseverse/types";
+import { defaultOperations } from "./operations";
+import { advanceMarket, createMarketState, explainMarketPosition } from "./market";
+import { createCompetitorAgents, createCustomerAgents, createInvestorAgents, createSupplierAgents, decideCompetitorMove, decideCustomerPurchase, evaluateInvestment, negotiateSupplier, runAgentRound } from "./agents";
+import { advanceEconomyDay, createEconomyState, createProduct, starterEconomy } from "./economy";
+import { getLifecycleStage } from "./lifecycle";
 import { createWorkforce, advanceWorkforce } from "./workforce";
 import { calculateFinancialSnapshot } from "./finance";
-import { createConsequenceState, advanceConsequences, consequenceFromChoice, scheduleConsequence } from "./consequences";
-import { createScenarioState, advanceScenarios } from "./scenarios";
+import { advanceConsequences, consequenceFromChoice, createConsequenceState, scheduleConsequence } from "./consequences";
+import { advanceScenarios, createScenarioState } from "./scenarios";
 import { createReplayState, recordDecision, recordSnapshot } from "./replay";
+import { assessRun, scoreDecisionOutcome } from "./assessment";
 import { generateEvent } from "./events";
-import { starterEconomy, advanceEconomyDay } from "./economy";
-import { createCustomerAgents, createSupplierAgents, createCompetitorAgents, createInvestorAgents, runAgentRound } from "./agents";
-import { scoreDecisionOutcome, assessRun } from "./assessment";
 import { buildAttentionSignals, buildCausalChain, buildDecisionMemory, buildNotifications, searchEnterprise, compareWave2Scenario, buildWave2Snapshot } from "./wave2";
 
-export * from "./core";
+export * from "./operations";
+export * from "./market";
+export * from "./agents";
+export * from "./economy";
+export * from "./lifecycle";
 export * from "./workforce";
 export * from "./finance";
 export * from "./consequences";
 export * from "./scenarios";
 export * from "./replay";
-export * from "./events";
-export * from "./economy";
-export * from "./agents";
 export * from "./assessment";
+export * from "./events";
 export * from "./wave2";
 
-export function createBusiness(input: { name: string; idea: string; industry: string; structure: "sole_trader" | "partnership" | "private_limited" | "social_enterprise"; founderNames: string[] }): SimulationState {
+const STARTING_CASH: Record<BusinessStructure, number> = {
+  sole_trader: 10000,
+  partnership: 20000,
+  private_limited: 50000,
+  social_enterprise: 15000,
+};
+
+const STRUCTURE_EXPENSE: Record<BusinessStructure, number> = {
+  sole_trader: 250,
+  partnership: 500,
+  private_limited: 1200,
+  social_enterprise: 350,
+};
+
+const clamp = (value: number) => Math.max(0, Math.min(100, value));
+
+const starterCustomers = (): Customer[] => [
+  { id: "customer-1", name: "Mira Shah", segment: "premium", trust: 72, lifetimeValue: 1200 },
+  { id: "customer-2", name: "Arjun Mehta", segment: "standard", trust: 64, lifetimeValue: 650 },
+  { id: "customer-3", name: "Sara Khan", segment: "budget", trust: 58, lifetimeValue: 320 },
+];
+
+const starterSuppliers = (): Supplier[] => [
+  { id: "supplier-1", name: "Nova Materials", category: "materials", reliability: 82, relationship: 68, unitCost: 20 },
+  { id: "supplier-2", name: "Metro Logistics", category: "logistics", reliability: 76, relationship: 61, unitCost: 14 },
+];
+
+export function createBusiness(input: { name: string; idea: string; industry: string; structure: BusinessStructure; founderNames: string[] }): SimulationState {
   const startingCash = STARTING_CASH[input.structure];
   const founders = input.founderNames.map((name, index) => ({ id: `founder-${index + 1}`, name, cash: Math.round(startingCash / Math.max(1, input.founderNames.length)), reputation: 50, role: index === 0 ? "ceo" as const : undefined }));
   const business: Business = { id: `business-${input.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, name: input.name, idea: input.idea, industry: input.industry, structure: input.structure, founders, cash: startingCash, revenue: 0, expenses: 0, reputation: 50, day: 1, status: "active", inventory: 20, customers: starterCustomers(), suppliers: starterSuppliers(), marketShare: 1 };
