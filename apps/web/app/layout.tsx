@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import "./experience/design-system.css";
 import "./ui-overrides.css";
 import "./phase12-experience.css";
 import "./phase24-experience.css";
@@ -20,7 +21,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#05070b",
+  themeColor: "#07090d",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
