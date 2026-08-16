@@ -51,5 +51,8 @@ jobs:
       - name: Run experience QA contracts
         run: pnpm qa:experience
 
+      - name: Run architecture cleanup QA
+        run: pnpm qa:architecture
+
       - name: Build web
         run: pnpm build:web
