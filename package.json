@@ -11,6 +11,7 @@
     "build:web": "pnpm --dir apps/web build",
     "check:api": "python -m compileall -q apps/api/app",
     "qa:experience": "node apps/web/scripts/experience-qa.mjs",
-    "check": "pnpm test:simulation && pnpm typecheck:simulation && pnpm typecheck:web && pnpm check:api && pnpm qa:experience && pnpm build:web"
+    "qa:architecture": "node apps/web/scripts/architecture-qa.mjs",
+    "check": "pnpm test:simulation && pnpm typecheck:simulation && pnpm typecheck:web && pnpm check:api && pnpm qa:experience && pnpm qa:architecture && pnpm build:web"
   }
 }
