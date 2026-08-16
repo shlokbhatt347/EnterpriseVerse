@@ -12,6 +12,7 @@
     "check:api": "python -m compileall -q apps/api/app",
     "qa:experience": "node apps/web/scripts/experience-qa.mjs",
     "qa:architecture": "node apps/web/scripts/architecture-qa.mjs",
-    "check": "pnpm test:simulation && pnpm typecheck:simulation && pnpm typecheck:web && pnpm check:api && pnpm qa:experience && pnpm qa:architecture && pnpm build:web"
+    "qa:polish": "node apps/web/scripts/polish-qa.mjs",
+    "check": "pnpm test:simulation && pnpm typecheck:simulation && pnpm typecheck:web && pnpm check:api && pnpm qa:experience && pnpm qa:architecture && pnpm qa:polish && pnpm build:web"
   }
 }
