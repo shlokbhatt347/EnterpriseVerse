@@ -5,6 +5,7 @@ import "./ui-overrides.css";
 import "./phase12-experience.css";
 import "./phase24-experience.css";
 import "./phase27-premium.css";
+import "./phase28-visual-excellence.css";
 import "./ui/primitives.css";
 import "./account-menu.css";
 import "./infinity-ui.css";
@@ -27,7 +28,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body>
+      <body className="ev-visual-excellence">
         <a className="skip-link" href="#main-content">Skip to main content</a>
         <AuthProvider>
           <ThemeToggle />
