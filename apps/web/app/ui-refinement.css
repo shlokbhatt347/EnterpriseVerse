@@ -1,0 +1,118 @@
+/* EnterpriseVerse UI Build 5 — responsive, accessibility and motion refinement.
+ * This layer hardens the shared UI contract without changing simulation behavior.
+ */
+:root {
+  --ev-touch-target: 44px;
+  --ev-content-gutter: clamp(16px, 3vw, 32px);
+  --ev-page-max: 1600px;
+  --ev-focus-strong: 0 0 0 3px rgba(167,243,107,.26), 0 0 0 1px rgba(167,243,107,.62);
+}
+
+html { scroll-behavior: smooth; }
+body { overflow-x: hidden; }
+img, svg, video, canvas { max-width: 100%; }
+img { height: auto; }
+button, [role="button"], a, input, select, textarea { touch-action: manipulation; }
+
+/* Keyboard-first interaction: never remove the browser focus contract. */
+:where(a, button, input, select, textarea, summary, [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 2px solid var(--ev-brand, #a7f36b);
+  outline-offset: 2px;
+  box-shadow: var(--ev-focus-strong);
+}
+
+:where(button, [role="button"], input[type="checkbox"], input[type="radio"], select) {
+  min-height: var(--ev-touch-target);
+}
+
+:where(.ui-button, .ui-input) { min-height: var(--ev-touch-target); }
+
+/* Shared responsive primitives for pages/components that opt into them. */
+.ev-page-frame {
+  width: min(100%, var(--ev-page-max));
+  margin-inline: auto;
+  padding-inline: var(--ev-content-gutter);
+}
+.ev-stack { display: grid; gap: var(--ev-space-6, 24px); }
+.ev-grid { display: grid; gap: var(--ev-space-5, 20px); }
+.ev-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ev-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ev-grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.ev-scroll-x { overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: thin; }
+.ev-scroll-x > * { min-width: max-content; }
+.ev-touch-list > * { min-height: var(--ev-touch-target); }
+.ev-focus-within:focus-within { border-color: var(--ev-focus-border, rgba(167,243,107,.52)); box-shadow: var(--ev-focus-ring); }
+
+/* Data tables become readable stacked lists when the viewport is constrained. */
+.ev-responsive-table { width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; }
+.ev-responsive-table table { min-width: 680px; width: 100%; border-collapse: separate; border-spacing: 0; }
+.ev-responsive-table th, .ev-responsive-table td { white-space: nowrap; }
+
+/* Dialogs/popovers stay inside the visual viewport and respect mobile keyboards. */
+:where(dialog, [role="dialog"]) { max-width: min(720px, calc(100vw - 24px)); max-height: min(82dvh, 900px); overflow: auto; }
+
+/* Status feedback should not rely on color alone. */
+.ev-status-dot { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; }
+.ev-status-dot[data-state="success"] { background: var(--ev-success); box-shadow: 0 0 0 4px var(--ev-success-soft); }
+.ev-status-dot[data-state="warning"] { background: var(--ev-warning); box-shadow: 0 0 0 4px var(--ev-warning-soft); }
+.ev-status-dot[data-state="error"] { background: var(--ev-critical); box-shadow: 0 0 0 4px var(--ev-critical-soft); }
+
+/* Reduce accidental motion while preserving essential state transitions. */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* High-contrast / forced-colors mode keeps interactive boundaries visible. */
+@media (forced-colors: active) {
+  :where(a, button, input, select, textarea, summary, [role="button"]) { forced-color-adjust: auto; }
+  :where(a, button, input, select, textarea, summary, [role="button"]):focus-visible { outline: 2px solid CanvasText; box-shadow: none; }
+  .ui-button, .ui-input, .ui-card, .ev-card, .ui-badge { border-color: ButtonText; }
+}
+
+@media (max-width: 1100px) {
+  .ev-grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ev-grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 760px) {
+  .ev-page-frame { padding-inline: 16px; }
+  .ev-grid-2, .ev-grid-3, .ev-grid-4 { grid-template-columns: 1fr; }
+  .ev-stack { gap: 18px; }
+  .ev-grid { gap: 14px; }
+  .ui-card, .ev-card { border-radius: var(--ev-radius-md, 10px); }
+  .ui-metric { padding: 15px; }
+  .ui-value { font-size: 21px; }
+  .ui-button-lg { min-height: 48px; }
+  :where(dialog, [role="dialog"]) { max-width: calc(100vw - 16px); max-height: calc(100dvh - 24px); }
+}
+
+@media (max-width: 430px) {
+  .ev-page-frame { padding-inline: 12px; }
+  .ui-button { min-height: 44px; }
+  .ui-button-sm { min-height: 42px; }
+  .ui-input { min-height: 46px; }
+  .ui-empty, .ui-error { padding: 18px; }
+}
+
+@media (max-width: 375px) {
+  .ev-page-frame { padding-inline: 10px; }
+  .ev-eyebrow { letter-spacing: .11em; }
+  .ev-title-xl { font-size: clamp(28px, 10vw, 38px); }
+  .ev-title-lg { font-size: clamp(23px, 8vw, 30px); }
+}
+
+/* Prevent dense data surfaces from forcing the entire application wider. */
+:where(pre, code) { max-width: 100%; overflow-x: auto; }
+:where(.ev-grid, .ev-stack, .ui-card, .ev-card) { min-width: 0; }
+
+/* Explicit interaction-state helpers for reusable components. */
+.ev-pressable { transition: transform var(--ev-duration-fast, 120ms) var(--ev-ease-standard, cubic-bezier(.2,.8,.2,1)); }
+.ev-pressable:hover { transform: translateY(-1px); }
+.ev-pressable:active { transform: translateY(1px) scale(.985); }
+.ev-state-transition { transition: opacity var(--ev-duration-base, 180ms) ease, transform var(--ev-duration-base, 180ms) var(--ev-ease-standard, cubic-bezier(.2,.8,.2,1)), border-color var(--ev-duration-base, 180ms) ease, background var(--ev-duration-base, 180ms) ease; }

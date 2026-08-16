@@ -18,6 +18,7 @@
     "qa:core-simulator": "node apps/web/scripts/core-simulator-qa.mjs",
     "qa:entry-experience": "node apps/web/scripts/entry-experience-qa.mjs",
     "qa:supporting-experience": "node apps/web/scripts/supporting-experience-qa.mjs",
-    "check": "pnpm test:simulation && pnpm typecheck:simulation && pnpm typecheck:web && pnpm check:api && pnpm qa:experience && pnpm qa:architecture && pnpm qa:polish && pnpm qa:release && pnpm qa:ui-foundation && pnpm qa:core-simulator && pnpm qa:entry-experience && pnpm qa:supporting-experience && pnpm build:web"
+    "qa:responsive-accessibility": "node apps/web/scripts/responsive-accessibility-qa.mjs",
+    "check": "pnpm test:simulation && pnpm typecheck:simulation && pnpm typecheck:web && pnpm check:api && pnpm qa:experience && pnpm qa:architecture && pnpm qa:polish && pnpm qa:release && pnpm qa:ui-foundation && pnpm qa:core-simulator && pnpm qa:entry-experience && pnpm qa:supporting-experience && pnpm qa:responsive-accessibility && pnpm build:web"
   }
 }
