@@ -14,6 +14,7 @@
     "qa:architecture": "node apps/web/scripts/architecture-qa.mjs",
     "qa:polish": "node apps/web/scripts/polish-qa.mjs",
     "qa:release": "node apps/web/scripts/release-qa.mjs",
-    "check": "pnpm test:simulation && pnpm typecheck:simulation && pnpm typecheck:web && pnpm check:api && pnpm qa:experience && pnpm qa:architecture && pnpm qa:polish && pnpm qa:release && pnpm build:web"
+    "qa:visual": "node apps/web/scripts/visual-excellence-qa.mjs",
+    "check": "pnpm test:simulation && pnpm typecheck:simulation && pnpm typecheck:web && pnpm check:api && pnpm qa:experience && pnpm qa:architecture && pnpm qa:polish && pnpm qa:release && pnpm qa:visual && pnpm build:web"
   }
 }
