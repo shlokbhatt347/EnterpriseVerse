@@ -10,6 +10,7 @@
     "typecheck:web": "pnpm --dir apps/web exec tsc --noEmit",
     "build:web": "pnpm --dir apps/web build",
     "check:api": "python -m compileall -q apps/api/app",
-    "check": "pnpm test:simulation && pnpm typecheck:simulation && pnpm typecheck:web && pnpm check:api && pnpm build:web"
+    "qa:experience": "node apps/web/scripts/experience-qa.mjs",
+    "check": "pnpm test:simulation && pnpm typecheck:simulation && pnpm typecheck:web && pnpm check:api && pnpm qa:experience && pnpm build:web"
   }
 }
