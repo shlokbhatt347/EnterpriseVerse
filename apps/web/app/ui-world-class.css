@@ -25,6 +25,7 @@ body {
 }
 
 :where(a, button, [role="button"]) {
+  touch-action: manipulation;
   transition:
     color var(--ev-final-duration) var(--ev-final-ease),
     background-color var(--ev-final-duration) var(--ev-final-ease),
