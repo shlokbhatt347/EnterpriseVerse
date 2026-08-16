@@ -1,0 +1,1 @@
+Phase 2 implementation note: World, Intelligence, Learning, and Endgame are canonical-shell migrations. Competition remains the next special-case migration because multiplayer state is separate.
