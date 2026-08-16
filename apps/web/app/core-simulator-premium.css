@@ -1,0 +1,159 @@
+/* UI Build 2 — Core simulator visual transformation
+ * Shared page-level visual language. Domain logic and workflows remain untouched.
+ */
+
+:root {
+  --ev-core-max: 1320px;
+  --ev-core-panel: color-mix(in srgb, var(--ev-surface-1) 92%, transparent);
+  --ev-core-panel-strong: color-mix(in srgb, var(--ev-surface-2) 94%, transparent);
+}
+
+/* Shared page canvas */
+.intelligence-page,
+.learning-page,
+.competition-shell,
+.endgame-shell,
+.enterprise-shell,
+.world-shell {
+  color: var(--ev-text-1);
+}
+
+/* ---------- DAY 1 / DECISION ---------- */
+.ev-day-header { max-width: var(--ev-core-max); margin-inline:auto; padding-top:10px; }
+.ev-day-header h1 { font-family:var(--ev-font-sans); font-weight:780; text-wrap:balance; }
+.ev-day-header p { color:var(--ev-text-2); }
+.ev-save-state { background:rgba(15,20,27,.82); border-color:var(--ev-border-2); border-radius:var(--ev-radius-pill); padding:9px 12px; }
+.ev-attention-banner { max-width:var(--ev-core-max); margin-inline:auto; border:1px solid var(--ev-border-2); border-left:3px solid var(--ev-brand); border-radius:var(--ev-radius-lg); background:linear-gradient(120deg,rgba(167,243,107,.055),rgba(15,20,27,.96) 38%); box-shadow:var(--ev-shadow-sm); }
+.ev-attention-banner h2 { font-size:clamp(22px,2.4vw,30px); letter-spacing:-.035em; }
+.ev-attention-badge { border-radius:var(--ev-radius-pill); background:var(--ev-brand-soft); }
+.ev-cockpit,.ev-decision-theater,.ev-consequence,.ev-learning,.ev-day-footer { max-width:var(--ev-core-max); margin-inline:auto; }
+.ev-section-title h2 { font-size:clamp(24px,2.7vw,34px); font-weight:740; }
+.ev-metric-grid { border:1px solid var(--ev-border-2); background:var(--ev-border-2); border-radius:var(--ev-radius-lg); overflow:hidden; box-shadow:var(--ev-shadow-sm); }
+.ev-cockpit-metric { background:linear-gradient(150deg,#111820,#0d1218); padding:22px; transition:background var(--ev-duration-base) ease; }
+.ev-cockpit-metric:hover { background:#141c25; }
+.ev-cockpit-metric strong { font-size:24px; font-weight:740; }
+.ev-cockpit-grid { border-radius:var(--ev-radius-lg); overflow:hidden; }
+.ev-cockpit-grid article { background:#0d131b; }
+.ev-decision-theater { border-radius:var(--ev-radius-xl); box-shadow:var(--ev-shadow-lg); background:radial-gradient(500px 220px at 90% 0%,rgba(167,243,107,.045),transparent 70%),#0b1017; }
+.ev-option { border-radius:var(--ev-radius-lg); border-color:var(--ev-border-2); background:linear-gradient(145deg,#111820,#0d1319); transition:transform var(--ev-duration-fast) var(--ev-ease-standard),border-color var(--ev-duration-base) ease,background var(--ev-duration-base) ease,box-shadow var(--ev-duration-base) ease; }
+.ev-option:hover { transform:translateY(-3px); border-color:var(--ev-border-3); box-shadow:var(--ev-shadow-md); }
+.ev-option.selected { border-color:var(--ev-brand); background:linear-gradient(145deg,rgba(167,243,107,.09),#101916); box-shadow:0 0 0 1px rgba(167,243,107,.12),var(--ev-shadow-md); }
+.ev-whatif-panel,.ev-delta,.ev-causal-chain>div { border-radius:var(--ev-radius-md); }
+.ev-primary,.ev-secondary { border-radius:var(--ev-radius-sm); transition:transform var(--ev-duration-instant) var(--ev-ease-standard),box-shadow var(--ev-duration-fast) ease,background var(--ev-duration-fast) ease; }
+.ev-primary:hover:not(:disabled),.ev-secondary:hover { transform:translateY(-1px); }
+.ev-primary:active:not(:disabled),.ev-secondary:active { transform:translateY(1px) scale(.985); }
+.ev-consequence { border-radius:var(--ev-radius-xl); background:radial-gradient(500px 260px at 10% 0%,rgba(167,243,107,.06),transparent 70%),#0c1219; box-shadow:var(--ev-shadow-lg); }
+.ev-learning { border-radius:var(--ev-radius-lg); background:linear-gradient(120deg,#111920,#0d1319); }
+
+/* ---------- WORLD / AWARENESS ---------- */
+.world-shell { background:radial-gradient(800px 480px at 12% -5%,rgba(167,243,107,.055),transparent 62%),radial-gradient(700px 420px at 92% 12%,rgba(117,184,255,.035),transparent 65%),var(--ev-bg-0); }
+.world-header { border-color:var(--ev-border-1); background:rgba(6,8,11,.82); box-shadow:0 1px 0 rgba(255,255,255,.02); }
+.world-brand { color:var(--ev-text-1); }
+.world-command-shell { max-width:var(--ev-core-max); }
+.command-hero h1 { font-weight:780; letter-spacing:-.052em; }
+.hero-health,.kpi-strip article,.attention-panel,.market-panel,.decision-panel,.priority-panel,.company-panel { border-color:var(--ev-border-1); background:linear-gradient(145deg,rgba(19,26,34,.95),rgba(10,14,19,.96)); box-shadow:var(--ev-shadow-sm); }
+.hero-health { border-radius:var(--ev-radius-xl); }
+.hero-health strong { color:var(--ev-brand); }
+.kpi-strip article { border-radius:var(--ev-radius-md); transition:transform var(--ev-duration-base) var(--ev-ease-standard),border-color var(--ev-duration-base) ease; }
+.kpi-strip article:hover { transform:translateY(-2px); border-color:var(--ev-border-2); }
+.section-title h2 { font-weight:740; }
+.signal-dot { background:var(--ev-brand); box-shadow:0 0 0 5px var(--ev-brand-soft); }
+.decision-card { border-radius:var(--ev-radius-lg); border-color:var(--ev-border-2); background:#0e151c; transition:transform var(--ev-duration-fast) var(--ev-ease-standard),border-color var(--ev-duration-base) ease,box-shadow var(--ev-duration-base) ease; }
+.decision-card:hover { transform:translateY(-3px); border-color:var(--ev-border-3); box-shadow:var(--ev-shadow-md); }
+.decision-card.selected { border-color:var(--ev-brand); background:rgba(167,243,107,.055); box-shadow:0 0 0 1px rgba(167,243,107,.1); }
+.advance { background:var(--ev-brand); color:var(--ev-brand-ink); border-radius:var(--ev-radius-sm); transition:transform var(--ev-duration-instant) var(--ev-ease-standard),box-shadow var(--ev-duration-fast) ease; }
+.advance:hover:not(:disabled) { background:var(--ev-brand-strong); transform:translateY(-1px); box-shadow:var(--ev-shadow-brand); }
+
+/* ---------- INTELLIGENCE / INSIGHT ---------- */
+.intelligence-page { min-height:100%; background:radial-gradient(900px 500px at 90% 0%,rgba(167,243,107,.045),transparent 60%); }
+.intel-header { max-width:var(--ev-core-max); margin-inline:auto; padding-top:10px; }
+.intel-header h1 { font-size:clamp(34px,4.8vw,58px); font-weight:780; letter-spacing:-.052em; }
+.intel-header p { color:var(--ev-text-2); }
+.intel-card { border:1px solid var(--ev-border-1); border-radius:var(--ev-radius-xl); background:linear-gradient(145deg,rgba(19,26,34,.97),rgba(10,14,19,.98)); box-shadow:var(--ev-shadow-sm); }
+.intel-hero { box-shadow:var(--ev-shadow-md); }
+.role-switcher { max-width:var(--ev-core-max); margin:0 auto 18px; padding:4px; background:#0b1016; border:1px solid var(--ev-border-1); border-radius:var(--ev-radius-md); }
+.role-button { border-radius:var(--ev-radius-sm); transition:background var(--ev-duration-fast) ease,color var(--ev-duration-fast) ease,transform var(--ev-duration-instant) ease; }
+.role-button.active { background:var(--ev-brand-soft); color:var(--ev-brand-strong); box-shadow:inset 0 0 0 1px rgba(167,243,107,.12); }
+.role-button:hover:not(.active) { background:rgba(255,255,255,.04); }
+.health-score strong { color:var(--ev-brand); }
+.metric-grid .metric { border-color:var(--ev-border-1); background:rgba(255,255,255,.025); border-radius:var(--ev-radius-md); }
+.priority { border-color:var(--ev-border-1); background:rgba(255,255,255,.018); border-radius:var(--ev-radius-lg); }
+.priority:hover { border-color:var(--ev-border-2); background:rgba(255,255,255,.028); }
+.scenario-controls label input { border-color:var(--ev-border-2); background:#0b1016; border-radius:var(--ev-radius-sm); transition:border-color var(--ev-duration-fast) ease,box-shadow var(--ev-duration-fast) ease; }
+.scenario-controls label input:focus { border-color:var(--ev-focus-border); box-shadow:var(--ev-focus-ring); outline:none; }
+.intel-primary { border-radius:var(--ev-radius-sm); background:var(--ev-brand); color:var(--ev-brand-ink); transition:transform var(--ev-duration-instant) ease,box-shadow var(--ev-duration-fast) ease; }
+.intel-primary:hover { transform:translateY(-1px); box-shadow:var(--ev-shadow-brand); }
+.scenario-result { border-color:var(--ev-border-2); border-radius:var(--ev-radius-lg); background:#0b1016; }
+
+/* ---------- LEARNING / REFLECTION ---------- */
+.learning-page { background:radial-gradient(700px 420px at 8% 0%,rgba(167,243,107,.045),transparent 65%),var(--ev-bg-0); }
+.learning-header,.learning-grid { max-width:var(--ev-core-max); }
+.learning-header h1 { font-weight:780; letter-spacing:-.052em; }
+.learning-header p { color:var(--ev-text-2); }
+.learning-card { border-color:var(--ev-border-1); border-radius:var(--ev-radius-xl); background:linear-gradient(145deg,rgba(19,26,34,.97),rgba(10,14,19,.98)); box-shadow:var(--ev-shadow-sm); }
+.learning-card:hover { border-color:var(--ev-border-2); }
+.learning-back { border-color:var(--ev-border-2); background:var(--ev-surface-2); border-radius:var(--ev-radius-sm); transition:transform var(--ev-duration-fast) ease,border-color var(--ev-duration-fast) ease; }
+.learning-back:hover { transform:translateY(-1px); border-color:var(--ev-border-3); }
+.choice-grid button { border-color:var(--ev-border-2); border-radius:var(--ev-radius-lg); background:#0e151c; transition:transform var(--ev-duration-fast) var(--ev-ease-standard),border-color var(--ev-duration-base) ease,box-shadow var(--ev-duration-base) ease; }
+.choice-grid button:hover { transform:translateY(-3px); border-color:var(--ev-border-3); box-shadow:var(--ev-shadow-md); }
+.learning-result { border-color:rgba(167,243,107,.2); background:var(--ev-brand-soft); }
+.skill-bar i { background:linear-gradient(90deg,var(--ev-brand),var(--ev-brand-strong)); }
+
+/* ---------- COMPETITION / PRESSURE ---------- */
+.competition-shell { background:radial-gradient(800px 480px at 85% -10%,rgba(167,243,107,.045),transparent 65%),radial-gradient(700px 420px at 10% 10%,rgba(117,184,255,.035),transparent 65%),var(--ev-bg-0); }
+.competition-card,.friend-request-panel { border-color:var(--ev-border-1); border-radius:var(--ev-radius-xl); background:linear-gradient(145deg,rgba(19,26,34,.97),rgba(10,14,19,.98)); box-shadow:var(--ev-shadow-sm); }
+.competition-user { border-color:var(--ev-border-2); background:var(--ev-surface-2); border-radius:var(--ev-radius-lg); }
+.room-status.active,.live-badge { color:var(--ev-brand); background:var(--ev-brand-soft); }
+.competition-primary { background:var(--ev-brand); color:var(--ev-brand-ink); border-radius:var(--ev-radius-sm); transition:transform var(--ev-duration-instant) ease,box-shadow var(--ev-duration-fast) ease; }
+.competition-primary:hover:not(:disabled) { transform:translateY(-1px); box-shadow:var(--ev-shadow-brand); }
+.competition-secondary { border-color:var(--ev-border-2); background:var(--ev-surface-2); border-radius:var(--ev-radius-sm); }
+.player-row,.friend-row,.room-code,.decision-options button { border-color:var(--ev-border-1); background:#0d141b; border-radius:var(--ev-radius-md); }
+.decision-options button { transition:transform var(--ev-duration-fast) ease,border-color var(--ev-duration-base) ease,background var(--ev-duration-base) ease; }
+.decision-options button:hover { transform:translateY(-2px); border-color:var(--ev-border-3); }
+.decision-options button.selected { border-color:var(--ev-brand); background:var(--ev-brand-soft); }
+.scope-tabs { background:#0b1016; border:1px solid var(--ev-border-1); }
+.scope-tabs button.active { background:var(--ev-surface-3); color:var(--ev-text-1); }
+.leader-row.self { background:var(--ev-brand-wash); border-color:rgba(167,243,107,.18); }
+
+/* ---------- ENDGAME / LEGACY ---------- */
+.endgame-shell { background:radial-gradient(900px 520px at 75% 0%,rgba(167,243,107,.055),transparent 62%),linear-gradient(180deg,#06080b 0%,#0b1016 48%,#101720 100%); }
+.season-banner,.panel { border-color:var(--ev-border-1); border-radius:var(--ev-radius-xl); background:linear-gradient(145deg,rgba(19,26,34,.96),rgba(10,14,19,.98)); box-shadow:var(--ev-shadow-sm); }
+.score-hero { background:radial-gradient(500px 300px at 78% 20%,rgba(167,243,107,.12),transparent 60%),rgba(14,24,36,.94); box-shadow:var(--ev-shadow-lg); }
+.score-value { color:var(--ev-brand); }
+.score-ring { background:conic-gradient(var(--ev-brand) var(--score),rgba(255,255,255,.08) 0); }
+.primary-button { background:var(--ev-brand); color:var(--ev-brand-ink); border-radius:var(--ev-radius-sm); transition:transform var(--ev-duration-instant) ease,box-shadow var(--ev-duration-fast) ease; }
+.primary-button:hover { transform:translateY(-1px); box-shadow:var(--ev-shadow-brand); }
+.secondary-button { border-color:var(--ev-border-2); background:var(--ev-surface-2); border-radius:var(--ev-radius-sm); }
+.metric-grid>div,.achievement,.end-path>div { border-color:var(--ev-border-1); background:rgba(255,255,255,.025); border-radius:var(--ev-radius-md); }
+.bar i { background:linear-gradient(90deg,var(--ev-brand),var(--ev-brand-strong)); }
+
+/* ---------- ENTERPRISE / COMPANY CREATION ---------- */
+.enterprise-shell { background:radial-gradient(800px 480px at 85% 0%,rgba(167,243,107,.055),transparent 62%),var(--ev-bg-0); }
+.enterprise-header,.enterprise-grid { max-width:var(--ev-core-max); }
+.enterprise-header h1 { font-weight:780; letter-spacing:-.052em; }
+.enterprise-header p { color:var(--ev-text-2); }
+.enterprise-card { border-color:var(--ev-border-1)!important; border-radius:var(--ev-radius-xl)!important; background:linear-gradient(145deg,rgba(19,26,34,.97),rgba(10,14,19,.98))!important; box-shadow:var(--ev-shadow-sm)!important; }
+.size-option { border-color:var(--ev-border-1)!important; background:#0d141b!important; border-radius:var(--ev-radius-lg)!important; transition:transform var(--ev-duration-fast) ease,border-color var(--ev-duration-base) ease,background var(--ev-duration-base) ease,box-shadow var(--ev-duration-base) ease!important; }
+.size-option:hover { transform:translateY(-2px); border-color:var(--ev-border-3)!important; box-shadow:var(--ev-shadow-sm); }
+.size-option.selected { border-color:var(--ev-brand)!important; background:var(--ev-brand-soft)!important; box-shadow:0 0 0 1px rgba(167,243,107,.1); }
+.enterprise-primary { background:var(--ev-brand)!important; color:var(--ev-brand-ink)!important; border-radius:var(--ev-radius-sm)!important; transition:transform var(--ev-duration-instant) ease,box-shadow var(--ev-duration-fast) ease!important; }
+.enterprise-primary:hover:not(:disabled) { transform:translateY(-1px); box-shadow:var(--ev-shadow-brand); }
+.enterprise-secondary { border-color:var(--ev-border-2)!important; background:var(--ev-surface-2)!important; border-radius:var(--ev-radius-sm)!important; }
+.field-grid input,.field input,.search-box input,.enterprise-shell select { border-color:var(--ev-border-2)!important; background:#0b1016!important; border-radius:var(--ev-radius-sm)!important; }
+.field-grid input:focus,.field input:focus,.search-box input:focus,.enterprise-shell select:focus { border-color:var(--ev-focus-border)!important; box-shadow:var(--ev-focus-ring)!important; outline:none; }
+
+/* Responsive refinement */
+@media (max-width: 900px) {
+  .ev-day-header,.ev-attention-banner,.ev-cockpit,.ev-decision-theater,.ev-consequence,.ev-learning,.ev-day-footer { width:auto; }
+  .intel-header,.role-switcher,.learning-header,.learning-grid,.competition-header,.competition-grid,.endgame-header,.hero-grid,.content-grid,.enterprise-header,.enterprise-grid { max-width:100%; }
+}
+@media (max-width: 600px) {
+  .ev-day-header h1,.intel-header h1,.learning-header h1,.enterprise-header h1 { text-wrap:balance; }
+  .ev-decision-theater,.ev-consequence,.ev-learning { border-radius:var(--ev-radius-lg); }
+}
+
+/* Reduced motion is a hard contract across every core surface. */
+@media (prefers-reduced-motion: reduce) {
+  .ev-cockpit-metric,.ev-option,.ev-primary,.ev-secondary,.decision-card,.advance,.role-button,.intel-primary,.learning-back,.choice-grid button,.competition-primary,.competition-secondary,.decision-options button,.primary-button,.secondary-button,.size-option,.enterprise-primary { transition:none!important; }
+  .ev-option:hover,.decision-card:hover,.advance:hover,.choice-grid button:hover,.competition-primary:hover,.primary-button:hover,.size-option:hover,.enterprise-primary:hover { transform:none!important; }
+}
