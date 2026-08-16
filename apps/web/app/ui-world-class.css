@@ -1,0 +1,124 @@
+/* EnterpriseVerse UI Build 6 — final world-class polish.
+ * A restrained finishing layer: hierarchy, consistency, tactile feedback,
+ * selection, focus, scrollbars and resilient small-screen composition.
+ * Simulation state and interaction contracts remain untouched.
+ */
+:root {
+  --ev-final-border: color-mix(in srgb, var(--ev-border, rgba(255,255,255,.12)) 88%, transparent);
+  --ev-final-muted: color-mix(in srgb, var(--ev-text-muted, #8f9aaa) 92%, transparent);
+  --ev-final-surface: var(--ev-surface, #111720);
+  --ev-final-ease: cubic-bezier(.2,.75,.25,1);
+  --ev-final-duration: 180ms;
+}
+
+::selection { background: rgba(167,243,107,.24); color: #f7fff1; }
+
+html { text-rendering: optimizeLegibility; }
+body {
+  min-height: 100dvh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+:where(a, button, [role="button"], input, select, textarea, summary) {
+  -webkit-tap-highlight-color: transparent;
+}
+
+:where(a, button, [role="button"]) {
+  transition:
+    color var(--ev-final-duration) var(--ev-final-ease),
+    background-color var(--ev-final-duration) var(--ev-final-ease),
+    border-color var(--ev-final-duration) var(--ev-final-ease),
+    box-shadow var(--ev-final-duration) var(--ev-final-ease),
+    transform var(--ev-final-duration) var(--ev-final-ease),
+    opacity var(--ev-final-duration) var(--ev-final-ease);
+}
+
+:where(button, [role="button"]):active:not(:disabled) {
+  transform: translateY(1px) scale(.985);
+}
+
+:where(button, [role="button"]):disabled,
+:where([aria-disabled="true"]) {
+  cursor: not-allowed;
+}
+
+:where(input, select, textarea) {
+  transition:
+    border-color var(--ev-final-duration) var(--ev-final-ease),
+    box-shadow var(--ev-final-duration) var(--ev-final-ease),
+    background-color var(--ev-final-duration) var(--ev-final-ease);
+}
+
+:where(input, select, textarea):focus-visible {
+  border-color: rgba(167,243,107,.62);
+}
+
+/* Keep long-form content readable instead of allowing giant text measures. */
+:where(.ev-prose, .auth-copy, .page-description, .section-description) {
+  max-width: 72ch;
+}
+
+/* Give dense data a consistent rhythm without forcing every surface into a card. */
+:where(.ev-card, .ui-card, .metric-card, [data-card="true"]) {
+  border-color: var(--ev-final-border);
+}
+
+:where(.ev-card, .ui-card, .metric-card, [data-card="true"]):hover {
+  border-color: color-mix(in srgb, var(--ev-brand, #a7f36b) 20%, var(--ev-final-border));
+}
+
+/* Premium, low-contrast scrollbars. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,.18) transparent;
+}
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,.16);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 999px;
+}
+*::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.26); background-clip: padding-box; }
+
+/* Avoid clipped focus rings inside horizontally scrollable data regions. */
+:where(.ev-scroll-x, .ev-responsive-table) { padding-block: 2px; }
+
+/* Small screens: prioritize primary actions and readable content over decoration. */
+@media (max-width: 767px) {
+  :where(.ev-page-frame) { padding-inline: 16px; }
+  :where(h1) { text-wrap: balance; }
+  :where(h2, h3) { text-wrap: pretty; }
+  :where(.ui-button, button, [role="button"]) { min-height: 44px; }
+  :where(.ui-button-group, .button-group, .actions) {
+    flex-wrap: wrap;
+  }
+  :where(.ui-button-group > *, .button-group > *, .actions > *) {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  :where(.ev-grid-2, .ev-grid-3, .ev-grid-4) { grid-template-columns: minmax(0, 1fr); }
+  :where(.modal-actions, .dialog-actions) { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Print is intentionally calm and useful for company/strategy summaries. */
+@media print {
+  body { background: #fff !important; color: #111 !important; }
+  :where(button, nav, [role="navigation"], .no-print) { display: none !important; }
+  :where(.ev-card, .ui-card, .metric-card) { break-inside: avoid; box-shadow: none !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(a, button, [role="button"], input, select, textarea) { transition: none !important; }
+  :where(button, [role="button"]):active:not(:disabled) { transform: none; }
+}
+
+@media (forced-colors: active) {
+  ::selection { background: Highlight; color: HighlightText; }
+  * { scrollbar-color: CanvasText Canvas; }
+  :where(.ev-card, .ui-card, .metric-card, [data-card="true"]) { border-color: CanvasText; }
+}
