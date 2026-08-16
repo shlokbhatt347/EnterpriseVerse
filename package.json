@@ -15,6 +15,7 @@
     "qa:polish": "node apps/web/scripts/polish-qa.mjs",
     "qa:release": "node apps/web/scripts/release-qa.mjs",
     "qa:ui-foundation": "node apps/web/scripts/ui-foundation-qa.mjs",
-    "check": "pnpm test:simulation && pnpm typecheck:simulation && pnpm typecheck:web && pnpm check:api && pnpm qa:experience && pnpm qa:architecture && pnpm qa:polish && pnpm qa:release && pnpm qa:ui-foundation && pnpm build:web"
+    "qa:core-simulator": "node apps/web/scripts/core-simulator-qa.mjs",
+    "check": "pnpm test:simulation && pnpm typecheck:simulation && pnpm typecheck:web && pnpm check:api && pnpm qa:experience && pnpm qa:architecture && pnpm qa:polish && pnpm qa:release && pnpm qa:ui-foundation && pnpm qa:core-simulator && pnpm build:web"
   }
 }
