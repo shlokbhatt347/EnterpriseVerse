@@ -1,0 +1,269 @@
+/* Phase 28 — Visual Excellence
+   A presentation-only finishing layer. No simulation state, routing, persistence,
+   or multiplayer behavior is changed here. The goal is a single premium visual
+   language across every route, including legacy/detail surfaces. */
+:root{
+  --v28-bg:#05080d;
+  --v28-surface:rgba(12,18,29,.86);
+  --v28-surface-raised:rgba(17,25,39,.94);
+  --v28-border:rgba(160,180,205,.14);
+  --v28-border-strong:rgba(160,220,255,.30);
+  --v28-text:#f5f8fc;
+  --v28-muted:#8d9ab0;
+  --v28-accent:#9ee8ff;
+  --v28-accent-strong:#63d8ff;
+  --v28-success:#7de2a3;
+  --v28-warning:#f4cc72;
+  --v28-danger:#ff8e9a;
+  --v28-shadow:0 22px 70px rgba(0,0,0,.28);
+  --v28-glow:0 0 40px rgba(99,216,255,.08);
+}
+
+body.ev-visual-excellence{
+  min-height:100vh;
+  color:var(--v28-text);
+  background:
+    radial-gradient(900px 500px at 84% -8%,rgba(99,216,255,.095),transparent 60%),
+    radial-gradient(700px 460px at 8% 24%,rgba(90,110,255,.065),transparent 62%),
+    linear-gradient(180deg,#05080d 0%,#070c14 48%,#05080d 100%);
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+body.ev-visual-excellence::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;opacity:.22;
+  background-image:linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.014) 1px,transparent 1px);
+  background-size:56px 56px;
+  mask-image:linear-gradient(to bottom,black,transparent 82%);
+}
+
+/* Typography hierarchy */
+body.ev-visual-excellence h1,
+body.ev-visual-excellence h2,
+body.ev-visual-excellence h3,
+body.ev-visual-excellence h4{
+  text-wrap:balance;
+  color:var(--v28-text);
+}
+body.ev-visual-excellence h1{letter-spacing:-.055em;font-weight:850}
+body.ev-visual-excellence h2{letter-spacing:-.038em;font-weight:800}
+body.ev-visual-excellence h3{letter-spacing:-.025em;font-weight:760}
+body.ev-visual-excellence p{line-height:1.62}
+body.ev-visual-excellence a{transition:color .18s ease,opacity .18s ease}
+body.ev-visual-excellence a:hover{color:var(--v28-accent)}
+
+/* Universal surfaces */
+body.ev-visual-excellence .card,
+body.ev-visual-excellence .ui-card,
+body.ev-visual-excellence .panel,
+body.ev-visual-excellence .surface,
+body.ev-visual-excellence .glass-card,
+body.ev-visual-excellence .career-card,
+body.ev-visual-excellence .competition-card,
+body.ev-visual-excellence .strategy-card,
+body.ev-visual-excellence .decision-experience{
+  position:relative;
+  overflow:hidden;
+  background:linear-gradient(180deg,rgba(255,255,255,.032),rgba(255,255,255,.008)),var(--v28-surface)!important;
+  border:1px solid var(--v28-border)!important;
+  box-shadow:var(--v28-shadow)!important;
+  backdrop-filter:blur(22px) saturate(125%);
+  -webkit-backdrop-filter:blur(22px) saturate(125%);
+}
+body.ev-visual-excellence .card::before,
+body.ev-visual-excellence .ui-card::before,
+body.ev-visual-excellence .panel::before,
+body.ev-visual-excellence .career-card::before,
+body.ev-visual-excellence .competition-card::before,
+body.ev-visual-excellence .strategy-card::before{
+  content:"";position:absolute;left:0;right:0;top:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--v28-accent),transparent);
+  opacity:.16;pointer-events:none;
+}
+body.ev-visual-excellence .card:hover,
+body.ev-visual-excellence .ui-card:hover,
+body.ev-visual-excellence .career-card:hover,
+body.ev-visual-excellence .competition-card:hover,
+body.ev-visual-excellence .strategy-card:hover{
+  border-color:var(--v28-border-strong)!important;
+  box-shadow:var(--v28-shadow),var(--v28-glow)!important;
+}
+
+/* KPI and metric details */
+body.ev-visual-excellence .stat-card,
+body.ev-visual-excellence .ui-metric,
+body.ev-visual-excellence .people-stats>div,
+body.ev-visual-excellence .finance-columns>div{
+  position:relative;overflow:hidden;
+}
+body.ev-visual-excellence .stat-card::after,
+body.ev-visual-excellence .ui-metric::after{
+  content:"";position:absolute;width:110px;height:110px;right:-45px;top:-52px;border-radius:50%;
+  background:radial-gradient(circle,rgba(99,216,255,.11),transparent 68%);pointer-events:none;
+}
+body.ev-visual-excellence .stat-value,
+body.ev-visual-excellence .ui-value,
+body.ev-visual-excellence .finance-total,
+body.ev-visual-excellence .learning-score strong,
+body.ev-visual-excellence .people-stats b,
+body.ev-visual-excellence .career-level{
+  font-variant-numeric:tabular-nums;
+  text-shadow:0 0 28px rgba(99,216,255,.055);
+}
+body.ev-visual-excellence .bar{background:rgba(148,163,184,.10)}
+body.ev-visual-excellence .bar i,
+body.ev-visual-excellence .skill-row i{
+  background:linear-gradient(90deg,#4e8cff,var(--v28-accent))!important;
+  box-shadow:0 0 14px rgba(99,216,255,.14);
+}
+
+/* Controls */
+body.ev-visual-excellence button,
+body.ev-visual-excellence input,
+body.ev-visual-excellence textarea,
+body.ev-visual-excellence select{font:inherit}
+body.ev-visual-excellence button{min-height:40px}
+body.ev-visual-excellence .primary,
+body.ev-visual-excellence .ui-button-primary,
+body.ev-visual-excellence .career-primary,
+body.ev-visual-excellence .competition-primary,
+body.ev-visual-excellence .strategy-primary,
+body.ev-visual-excellence .advance{
+  position:relative;overflow:hidden;
+  background:linear-gradient(180deg,#ffffff,#dfe8f4)!important;
+  color:#06101a!important;
+  border:1px solid rgba(255,255,255,.60)!important;
+  box-shadow:0 12px 28px rgba(0,0,0,.24),inset 0 1px rgba(255,255,255,.8)!important;
+}
+body.ev-visual-excellence .primary::after,
+body.ev-visual-excellence .ui-button-primary::after,
+body.ev-visual-excellence .career-primary::after,
+body.ev-visual-excellence .competition-primary::after,
+body.ev-visual-excellence .strategy-primary::after,
+body.ev-visual-excellence .advance::after{
+  content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent,rgba(99,216,255,.22),transparent);
+  transform:translateX(-120%);transition:transform .48s ease;pointer-events:none;
+}
+body.ev-visual-excellence .primary:hover:not(:disabled),
+body.ev-visual-excellence .ui-button-primary:hover:not(:disabled),
+body.ev-visual-excellence .career-primary:hover:not(:disabled),
+body.ev-visual-excellence .competition-primary:hover:not(:disabled),
+body.ev-visual-excellence .strategy-primary:hover:not(:disabled),
+body.ev-visual-excellence .advance:hover:not(:disabled){transform:translateY(-2px)}
+body.ev-visual-excellence .primary:hover:not(:disabled)::after,
+body.ev-visual-excellence .ui-button-primary:hover:not(:disabled)::after,
+body.ev-visual-excellence .career-primary:hover:not(:disabled)::after,
+body.ev-visual-excellence .competition-primary:hover:not(:disabled)::after,
+body.ev-visual-excellence .strategy-primary:hover:not(:disabled)::after,
+body.ev-visual-excellence .advance:hover:not(:disabled)::after{transform:translateX(120%)}
+body.ev-visual-excellence .secondary,
+body.ev-visual-excellence .ui-button-secondary,
+body.ev-visual-excellence .secondary-button,
+body.ev-visual-excellence .competition-secondary,
+body.ev-visual-excellence .strategy-secondary{
+  background:rgba(12,20,33,.82)!important;color:#d8e2f0!important;border-color:var(--v28-border)!important;
+}
+body.ev-visual-excellence .secondary:hover,
+body.ev-visual-excellence .ui-button-secondary:hover,
+body.ev-visual-excellence .competition-secondary:hover,
+body.ev-visual-excellence .strategy-secondary:hover{border-color:var(--v28-border-strong)!important;transform:translateY(-1px)}
+body.ev-visual-excellence input,
+body.ev-visual-excellence textarea,
+body.ev-visual-excellence select,
+body.ev-visual-excellence .auth-input{
+  background:rgba(5,11,19,.88)!important;color:var(--v28-text)!important;border-color:var(--v28-border)!important;
+}
+body.ev-visual-excellence input:hover,
+body.ev-visual-excellence textarea:hover,
+body.ev-visual-excellence select:hover{border-color:rgba(160,220,255,.25)!important}
+body.ev-visual-excellence input:focus,
+body.ev-visual-excellence textarea:focus,
+body.ev-visual-excellence select:focus,
+body.ev-visual-excellence .auth-input:focus{
+  border-color:rgba(99,216,255,.70)!important;box-shadow:0 0 0 3px rgba(99,216,255,.12)!important;outline:none;
+}
+
+/* Navigation and shell details */
+body.ev-visual-excellence .topbar{
+  background:rgba(5,9,15,.72)!important;border-bottom-color:rgba(160,180,205,.10)!important;
+  backdrop-filter:blur(24px) saturate(145%);
+}
+body.ev-visual-excellence .sidebar{
+  background:rgba(5,9,15,.56)!important;border-color:rgba(160,180,205,.09)!important;backdrop-filter:blur(20px);
+}
+body.ev-visual-excellence .nav-item{position:relative;border:1px solid transparent}
+body.ev-visual-excellence .nav-item.active{
+  background:linear-gradient(90deg,rgba(99,216,255,.12),rgba(99,216,255,.025))!important;
+  border-color:rgba(99,216,255,.10)!important;color:#f5fbff!important;
+  box-shadow:inset 2px 0 var(--v28-accent)!important;
+}
+body.ev-visual-excellence .nav-item::after{
+  content:"";position:absolute;left:12px;right:12px;bottom:4px;height:1px;background:var(--v28-accent);
+  transform:scaleX(0);transform-origin:left;transition:transform .18s ease;opacity:.65;
+}
+body.ev-visual-excellence .nav-item:hover::after,
+body.ev-visual-excellence .nav-item.active::after{transform:scaleX(1)}
+
+/* Tables, lists and dense detail views */
+body.ev-visual-excellence table{width:100%;border-collapse:separate;border-spacing:0;overflow:hidden;border:1px solid var(--v28-border);border-radius:14px;background:rgba(5,11,19,.42)}
+body.ev-visual-excellence th{padding:11px 13px;text-align:left;color:#78879d;font-size:10px;font-weight:850;letter-spacing:.10em;text-transform:uppercase;background:rgba(255,255,255,.025);border-bottom:1px solid var(--v28-border)}
+body.ev-visual-excellence td{padding:12px 13px;color:#c9d4e3;font-size:12px;border-bottom:1px solid rgba(160,180,205,.075)}
+body.ev-visual-excellence tr:last-child td{border-bottom:0}
+body.ev-visual-excellence tbody tr{transition:background .16s ease}
+body.ev-visual-excellence tbody tr:hover{background:rgba(99,216,255,.035)}
+body.ev-visual-excellence .feed-item,
+body.ev-visual-excellence .founder-row,
+body.ev-visual-excellence .offer-mini,
+body.ev-visual-excellence .candidate,
+body.ev-visual-excellence .history-item,
+body.ev-visual-excellence .player-row,
+body.ev-visual-excellence .friend-row{border-color:rgba(160,180,205,.08)!important}
+body.ev-visual-excellence .feed-item:hover,
+body.ev-visual-excellence .founder-row:hover,
+body.ev-visual-excellence .player-row:hover,
+body.ev-visual-excellence .friend-row:hover{background:rgba(99,216,255,.035)}
+
+/* Status language */
+body.ev-visual-excellence .ui-badge,
+body.ev-visual-excellence .pill,
+body.ev-visual-excellence .ui-status,
+body.ev-visual-excellence .ev-status{backdrop-filter:blur(10px)}
+body.ev-visual-excellence .ui-badge-info{background:rgba(27,76,112,.28)!important;color:#b9e9ff!important}
+body.ev-visual-excellence .ui-badge-success{background:rgba(25,91,61,.28)!important;color:#baf2cf!important}
+body.ev-visual-excellence .ui-badge-warning{background:rgba(108,78,14,.28)!important;color:#ffe4a0!important}
+body.ev-visual-excellence .ui-badge-danger{background:rgba(108,25,42,.28)!important;color:#ffc0c8!important}
+
+/* Auth and entry pages */
+body.ev-visual-excellence .auth-page{
+  background:radial-gradient(700px 500px at 50% 0%,rgba(99,216,255,.10),transparent 65%),transparent!important;
+}
+body.ev-visual-excellence .auth-card{
+  border-radius:24px!important;background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.008)),rgba(9,15,25,.88)!important;
+  border-color:var(--v28-border)!important;box-shadow:0 30px 100px rgba(0,0,0,.38)!important;
+}
+body.ev-visual-excellence .auth-brand{color:var(--v28-accent)!important;letter-spacing:.18em}
+body.ev-visual-excellence .auth-links a{color:#9ddfff}
+body.ev-visual-excellence .auth-button{transition:transform .18s ease,box-shadow .18s ease}
+body.ev-visual-excellence .auth-button:hover{transform:translateY(-2px);box-shadow:0 14px 30px rgba(0,0,0,.28)}
+
+/* Empty/loading/recovery states */
+body.ev-visual-excellence .ui-empty{background:rgba(255,255,255,.015);border-color:rgba(160,180,205,.16);box-shadow:inset 0 1px rgba(255,255,255,.025)}
+body.ev-visual-excellence .ui-skeleton{background:linear-gradient(90deg,#0e1725 25%,#18263a 37%,#0e1725 63%);background-size:400% 100%}
+body.ev-visual-excellence .error{box-shadow:0 14px 38px rgba(0,0,0,.18)}
+
+/* Focus and motion */
+body.ev-visual-excellence :focus-visible{outline:2px solid var(--v28-accent)!important;outline-offset:3px;box-shadow:0 0 0 5px rgba(99,216,255,.10)!important}
+@media(prefers-reduced-motion:reduce){
+  body.ev-visual-excellence *,body.ev-visual-excellence *::before,body.ev-visual-excellence *::after{
+    animation-duration:.001ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.001ms!important;
+  }
+  body.ev-visual-excellence .primary:hover:not(:disabled),body.ev-visual-excellence .secondary:hover,body.ev-visual-excellence .card:hover{transform:none!important}
+}
+@media(max-width:760px){
+  body.ev-visual-excellence .card,body.ev-visual-excellence .ui-card,body.ev-visual-excellence .panel{border-radius:14px!important}
+  body.ev-visual-excellence table{display:block;overflow-x:auto;white-space:nowrap}
+  body.ev-visual-excellence .hero-actions{gap:8px}
+}
+@media(max-width:480px){
+  body.ev-visual-excellence .content{padding-left:14px!important;padding-right:14px!important}
+  body.ev-visual-excellence .primary,body.ev-visual-excellence .secondary,body.ev-visual-excellence .auth-button{min-height:46px}
+}
