@@ -34,14 +34,22 @@ Extend the canonical EnterpriseVerse experience established by Phase 1 without r
 - Replaced direct `localStorage` reads with `useSimulation`.
 - Legacy scoring, achievements, season and global ranking systems remain intact.
 
+### Competition
+
+- Wrapped `/competition` in `CanonicalShell` without changing its multiplayer persistence ownership.
+- Retained server-authoritative rooms, players, friendships, leaderboard, realtime updates and decision submission APIs.
+- Kept `competition-sim.ts` as the deterministic per-player competition simulation adapter.
+- Mirrors the browser-cached competition simulation into the canonical shell so executive KPIs update after competition decisions.
+- Does not force multiplayer state through the single-player `useSimulation` persistence adapter.
+
 ## Architectural rule
 
-The UI should consume the same `SimulationState` and persistence adapter as Day 1. Individual surfaces may retain domain-specific view models, but they must not create competing save paths or mutate simulation state independently.
+The canonical shell is shared across EnterpriseVerse surfaces, while simulation ownership remains domain-specific where multiplayer semantics require it. Surfaces must not create competing ownership for the same state.
 
 ## Remaining migration slices
 
-1. Competition → canonical shell + reconcile multiplayer simulation state with the shared experience model.
-2. Browser visual QA at desktop, tablet, and mobile breakpoints.
+1. Browser visual QA at desktop, tablet, and mobile breakpoints.
+2. Verify Competition realtime and fallback synchronization with the canonical shell mounted.
 3. Cross-surface decision/consequence navigation polish.
 4. Legacy CSS/scaffold cleanup only after migrated surfaces pass QA.
 
