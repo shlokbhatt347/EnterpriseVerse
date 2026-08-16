@@ -80,6 +80,7 @@ export function isCompetitionDecision(value: string): value is CompetitionDecisi
 export function saveCompetitionSimulation(roomId: string, userId: string, state: SimulationState) {
   try {
     sessionStorage.setItem(storageKey(roomId, userId), JSON.stringify(state));
+    window.dispatchEvent(new CustomEvent("enterpriseverse:competition-simulation"));
   } catch {
     // Server persistence remains authoritative; the browser cache is best-effort.
   }
