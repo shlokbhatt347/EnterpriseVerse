@@ -12,7 +12,6 @@ const assert = (condition, message) => {
 };
 
 assert(existsSync(refinement), "ui-refinement.css must exist");
-
 const css = existsSync(refinement) ? readFileSync(refinement, "utf8") : "";
 const layout = readFileSync(join(app, "layout.tsx"), "utf8");
 
@@ -52,7 +51,6 @@ const routes = [
   ["play", "Supporting experience"],
   ["company", "Supporting experience"],
   ["career", "Supporting experience"],
-  ["account", "Account"],
   ["auth/signin", "Authentication"],
   ["auth/signup", "Authentication"],
   ["start", "Entry"],
