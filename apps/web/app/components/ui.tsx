@@ -12,12 +12,29 @@ export function Badge({ children, tone = "neutral" }: { children: ReactNode; ton
   return <span className={`ui-badge ui-badge-${tone}`}>{children}</span>;
 }
 
-export function Button({ children, variant = "primary", ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "ghost" | "danger" }) {
-  return <button {...props} className={`ui-button ui-button-${variant} ${props.className ?? ""}`}>{children}</button>;
+type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
+
+type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: ButtonVariant;
+  loading?: boolean;
+};
+
+export function Button({ children, variant = "primary", loading = false, disabled, className = "", ...props }: ButtonProps) {
+  return (
+    <button
+      {...props}
+      className={`ui-button ui-button-${variant} ${className}`.trim()}
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
+      data-loading={loading || undefined}
+    >
+      {children}
+    </button>
+  );
 }
 
 export function TextInput(props: InputHTMLAttributes<HTMLInputElement>) {
-  return <input {...props} className={`ui-input ${props.className ?? ""}`} />;
+  return <input {...props} className={`ui-input ${props.className ?? ""}`.trim()} />;
 }
 
 export function Skeleton({ width = "100%", height = "1rem" }: { width?: string; height?: string }) {
