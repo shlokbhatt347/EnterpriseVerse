@@ -47,11 +47,20 @@ export default function CanonicalShell({ state, syncStatus = "ready", children }
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [mobileOpen]);
 
+  const focusAttention = () => {
+    const target = document.getElementById("ev-attention");
+    if (target) {
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    document.getElementById("simulation-workspace")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   return <div className="ev-canonical-shell">
     <header className="ev-canonical-topbar">
       <Link href="/" className="ev-canonical-brand" aria-label="EnterpriseVerse home"><span className="ev-brand-mark" aria-hidden="true">EV</span><span>Enterprise<span>Verse</span></span></Link>
       <div className="ev-world-state" aria-label={`Simulation day ${state.business.day}`}><span className="ev-live-pulse" aria-hidden="true" /><span>WORLD LIVE</span><b>DAY {state.business.day}</b></div>
-      <div className="ev-top-metrics"><span><small>CASH</small><b>{money(state.business.cash)}</b></span><span><small>REPUTATION</small><b>{Math.round(state.business.reputation)}</b></span><button type="button" className="ev-attention-trigger" aria-label={`${actionable} item needing attention`} onClick={() => document.getElementById("ev-attention")?.scrollIntoView({ behavior: "smooth", block: "start" })}><small>ATTENTION</small><b>{actionable}</b></button></div>
+      <div className="ev-top-metrics"><span><small>CASH</small><b>{money(state.business.cash)}</b></span><span><small>REPUTATION</small><b>{Math.round(state.business.reputation)}</b></span><button type="button" className="ev-attention-trigger" aria-label={`${actionable} item needing attention`} onClick={focusAttention}><small>ATTENTION</small><b>{actionable}</b></button></div>
       <button type="button" className="ev-mobile-toggle" aria-expanded={mobileOpen} aria-controls="ev-canonical-nav" onClick={() => setMobileOpen((v) => !v)}>{mobileOpen ? "Close" : "Menu"}</button>
     </header>
     <div className="ev-canonical-body">
