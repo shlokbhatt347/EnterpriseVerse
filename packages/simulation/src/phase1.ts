@@ -1,0 +1,176 @@
+import type { Business, Consequence, MarketState, SimulationChoice, SimulationEvent, SimulationState } from "@enterpriseverse/types";
+
+export type Phase1EffectKey = "cash" | "revenue" | "expenses" | "reputation" | "inventory" | "customers" | "marketShare" | "customerTrust" | "supplierRelationship" | "quality" | "brandAwareness" | "customerSatisfaction" | "debt";
+
+export interface Phase1RuleContext {
+  day: number;
+  business: Business;
+  market?: MarketState;
+}
+
+export interface Phase1CausalRule {
+  id: string;
+  label: string;
+  priority: number;
+  when: (context: Phase1RuleContext) => boolean;
+  choice: SimulationChoice;
+  delayed?: Array<{ delayDays: number; effects: Partial<Record<Phase1EffectKey, number>>; explanation: string }>;
+}
+
+const clamp = (value: number, min = 0, max = 100): number => Math.max(min, Math.min(max, value));
+
+/** Small deterministic PRNG. Simulation decisions must never depend on Math.random(). */
+export function createSeededRandom(seed: number): () => number {
+  let value = seed >>> 0;
+  return () => {
+    value += 0x6d2b79f5;
+    let t = value;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+export function stableSeed(...parts: Array<string | number>): number {
+  let hash = 2166136261;
+  for (const character of parts.join("|")) {
+    hash ^= character.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function choice(id: string, label: string, effects: Record<string, number>): SimulationChoice {
+  return { id, label, effects };
+}
+
+/** Release 1 event director. Events are selected from business state rather than a day modulo cycle. */
+export function buildDynamicEvent(context: Phase1RuleContext, seed = 1): SimulationEvent {
+  const { day, business, market } = context;
+  const rules: Phase1CausalRule[] = [
+    {
+      id: "cash-pressure", label: "Cash runway pressure", priority: business.cash < 3_000 ? 100 : business.cash < 7_500 ? 70 : 0,
+      when: () => business.cash < 7_500,
+      choice: choice("protect-cash", "Protect cash and slow growth", { cash: 450, revenue: -350, reputation: -1, marketShare: -0.1 }),
+      delayed: [{ delayDays: 2, effects: { reputation: -2 }, explanation: "Slower service investment is beginning to affect customer confidence." }],
+    },
+    {
+      id: "stockout", label: "Inventory shortage", priority: business.inventory <= 5 ? 95 : business.inventory <= 12 ? 60 : 0,
+      when: () => business.inventory <= 12,
+      choice: choice("expedite-stock", "Pay to expedite inventory", { cash: -700, inventory: 18, reputation: 1 }),
+      delayed: [{ delayDays: 1, effects: { expenses: 250 }, explanation: "Expedited logistics cost more than normal procurement." }],
+    },
+    {
+      id: "demand-surge", label: "Demand surge", priority: market && market.demandIndex >= 110 ? 90 : 0,
+      when: () => Boolean(market && market.demandIndex >= 110),
+      choice: choice("capture-demand", "Invest in stock to capture demand", { cash: -900, inventory: 25, revenue: 1_800, customers: 4, reputation: 2 }),
+      delayed: [{ delayDays: 2, effects: { cash: 700, marketShare: 0.4 }, explanation: "Customers remember the business that stayed available during the surge." }],
+    },
+    {
+      id: "competitive-price", label: "Competitor price attack", priority: market && market.competitivePressure >= 65 ? 85 : 0,
+      when: () => Boolean(market && market.competitivePressure >= 65),
+      choice: choice("differentiate", "Differentiate on quality instead of cutting price", { cash: -400, reputation: 3, customers: 2, marketShare: 0.3 }),
+      delayed: [{ delayDays: 3, effects: { customerTrust: 4 }, explanation: "Consistent quality improves trust after a competitor price war." }],
+    },
+    {
+      id: "reputation-recovery", label: "Reputation recovery", priority: business.reputation < 40 ? 80 : 0,
+      when: () => business.reputation < 40,
+      choice: choice("repair-trust", "Fund a customer recovery programme", { cash: -500, reputation: 7, customerTrust: 8, customers: 1 }),
+      delayed: [{ delayDays: 3, effects: { marketShare: 0.25 }, explanation: "Trust recovery converts into stronger word-of-mouth over time." }],
+    },
+    {
+      id: "supplier-negotiation", label: "Supplier negotiation window", priority: business.suppliers.some((supplier) => supplier.relationship < 50) ? 55 : 20,
+      when: () => true,
+      choice: choice("negotiate-supplier", "Negotiate a longer-term supplier commitment", { cash: -300, supplierRelationship: 7, inventory: 8 }),
+      delayed: [{ delayDays: 2, effects: { cash: 500, supplierRelationship: 3 }, explanation: "The supplier rewards a more predictable relationship with better terms." }],
+    },
+  ];
+
+  const eligible = rules.filter((rule) => rule.when(context)).sort((a, b) => b.priority - a.priority || a.id.localeCompare(b.id));
+  const topPriority = eligible[0]?.priority ?? 0;
+  const tied = eligible.filter((rule) => rule.priority === topPriority);
+  const random = createSeededRandom(stableSeed(seed, day, business.id, business.cash, business.inventory));
+  const selected = tied[Math.floor(random() * tied.length)] ?? rules[rules.length - 1];
+  return {
+    id: `phase1-${selected.id}-day-${day}`,
+    day,
+    title: selected.label,
+    message: `${selected.label}. Your current cash is ₹${Math.round(business.cash).toLocaleString("en-IN")}, inventory is ${Math.round(business.inventory)} units, and reputation is ${Math.round(business.reputation)}/100.`,
+    choices: [selected.choice, choice("wait-and-observe", "Wait and gather more information", { reputation: 0, marketShare: 0 }), choice("act-conservatively", "Take a conservative middle path", { cash: -150, reputation: 1, marketShare: 0.05 })],
+  };
+}
+
+export function schedulePhase1Consequences(state: SimulationState, selected: SimulationChoice, day: number, source: string): SimulationState {
+  const rules: Array<{ match: string; delayDays: number; effects: Partial<Record<Phase1EffectKey, number>>; explanation: string }> = [
+    { match: "protect-cash", delayDays: 2, effects: { reputation: -2 }, explanation: "A slower growth posture reduced service investment and customer confidence." },
+    { match: "expedite-stock", delayDays: 1, effects: { expenses: 250 }, explanation: "Expedited logistics created an additional operating expense." },
+    { match: "capture-demand", delayDays: 2, effects: { cash: 700, marketShare: 0.4 }, explanation: "Availability during a demand surge created repeat demand." },
+    { match: "differentiate", delayDays: 3, effects: { customerTrust: 4, marketShare: 0.2 }, explanation: "Quality differentiation strengthened trust after the competitor attack." },
+    { match: "repair-trust", delayDays: 3, effects: { marketShare: 0.25 }, explanation: "Customer recovery improved word-of-mouth over time." },
+    { match: "negotiate-supplier", delayDays: 2, effects: { cash: 500, supplierRelationship: 3 }, explanation: "A stronger supplier relationship improved future terms." },
+  ];
+  const rule = rules.find((candidate) => candidate.match === selected.id);
+  if (!rule) return state;
+  const consequence: Consequence = {
+    id: `phase1-${source}-${selected.id}-${day}`,
+    source,
+    day,
+    delayDays: rule.delayDays,
+    effects: rule.effects,
+    explanation: rule.explanation,
+  };
+  return { ...state, consequences: { ...(state.consequences ?? { pending: [], resolved: [] }), pending: [...(state.consequences?.pending ?? []), consequence] } };
+}
+
+export function resolvePhase1Consequences(state: SimulationState, day: number): { state: SimulationState; explanations: string[] } {
+  const consequenceState = state.consequences ?? { pending: [], resolved: [] };
+  const due = consequenceState.pending.filter((item) => item.day + item.delayDays <= day);
+  const pending = consequenceState.pending.filter((item) => item.day + item.delayDays > day);
+  if (!due.length) return { state: { ...state, consequences: consequenceState }, explanations: [] };
+
+  let business = { ...state.business };
+  for (const item of due) {
+    const effects = item.effects;
+    business = {
+      ...business,
+      cash: Math.max(0, business.cash + (effects.cash ?? 0)),
+      revenue: Math.max(0, business.revenue + (effects.revenue ?? 0)),
+      expenses: Math.max(0, business.expenses + (effects.expenses ?? 0)),
+      inventory: Math.max(0, business.inventory + (effects.inventory ?? 0)),
+      reputation: clamp(business.reputation + (effects.reputation ?? 0)),
+      marketShare: clamp(business.marketShare + (effects.marketShare ?? 0)),
+    };
+    if (effects.customers) {
+      const count = Math.max(0, Math.round(effects.customers));
+      business = { ...business, customers: [...business.customers, ...Array.from({ length: count }, (_, index) => ({ id: `phase1-customer-${day}-${index}`, name: `Returning Customer ${day}-${index + 1}`, segment: "standard" as const, trust: 65, lifetimeValue: 0 }))] };
+    }
+  }
+  return { state: { ...state, business, consequences: { pending, resolved: [...consequenceState.resolved, ...due] } }, explanations: due.map((item) => `Delayed consequence resolved: ${item.explanation}`) };
+}
+
+export interface SimulationInvariantFailure { code: string; message: string; }
+
+export function validateSimulationState(state: SimulationState): SimulationInvariantFailure[] {
+  const failures: SimulationInvariantFailure[] = [];
+  const b = state.business;
+  const checks: Array<[string, boolean, string]> = [
+    ["cash-negative", b.cash >= 0, "Business cash cannot be negative."],
+    ["inventory-negative", b.inventory >= 0, "Business inventory cannot be negative."],
+    ["reputation-range", b.reputation >= 0 && b.reputation <= 100, "Reputation must stay within 0..100."],
+    ["market-share-range", b.marketShare >= 0 && b.marketShare <= 100, "Market share must stay within 0..100."],
+    ["day-positive", Number.isInteger(b.day) && b.day >= 1, "Simulation day must be a positive integer."],
+    ["revenue-nan", Number.isFinite(b.revenue), "Revenue must remain finite."],
+    ["expenses-nan", Number.isFinite(b.expenses), "Expenses must remain finite."],
+  ];
+  for (const [code, valid, message] of checks) if (!valid) failures.push({ code, message });
+  for (const supplier of b.suppliers) {
+    if (supplier.relationship < 0 || supplier.relationship > 100) failures.push({ code: `supplier-relationship-${supplier.id}`, message: "Supplier relationship must stay within 0..100." });
+    if (supplier.reliability < 0 || supplier.reliability > 100) failures.push({ code: `supplier-reliability-${supplier.id}`, message: "Supplier reliability must stay within 0..100." });
+  }
+  return failures;
+}
+
+export function assertSimulationState(state: SimulationState): void {
+  const failures = validateSimulationState(state);
+  if (failures.length) throw new Error(`Simulation invariant violation: ${failures.map((failure) => `${failure.code}: ${failure.message}`).join(" | ")}`);
+}

@@ -10,6 +10,7 @@ import { advanceConsequences, consequenceFromChoice, createConsequenceState, sch
 import { advanceScenarios, createScenarioState } from "./scenarios";
 import { createReplayState, recordDecision, recordSnapshot } from "./replay";
 import { assessRun, scoreDecisionOutcome } from "./assessment";
+import { assertSimulationState, buildDynamicEvent, resolvePhase1Consequences, schedulePhase1Consequences } from "./phase1";
 
 export { createCustomerAgents, createSupplierAgents, createCompetitorAgents, createInvestorAgents, decideCustomerPurchase, negotiateSupplier, decideCompetitorMove, evaluateInvestment } from "./agents";
 export { applyBusinessAction, calculateKpis, defaultOperations } from "./operations";
@@ -26,6 +27,7 @@ export * from "./replay";
 export * from "./assessment";
 export * from "./phase4";
 export * from "./phase7";
+export * from "./phase1";
 export type { BusinessAction } from "./operations";
 export type { IntegratedMetrics } from "./integration";
 export type { LearningAssessment, LearningDimension, LearningScore } from "./learning";
@@ -35,25 +37,24 @@ const STRUCTURE_EXPENSE: Record<BusinessStructure, number> = { sole_trader: 450,
 const clamp = (value: number) => Math.max(0, Math.min(100, value));
 const choice = (id: string, label: string, effects: Record<string, number>): SimulationChoice => ({ id, label, effects });
 
-function starterCustomers(): Customer[] { return [
-  { id: "customer-1", name: "Aarav", segment: "standard", trust: 60, lifetimeValue: 0 },
-  { id: "customer-2", name: "Mira", segment: "premium", trust: 72, lifetimeValue: 0 },
-  { id: "customer-3", name: "Kabir", segment: "budget", trust: 52, lifetimeValue: 0 },
-]; }
-function starterSuppliers(): Supplier[] { return [
-  { id: "supplier-1", name: "Prime Supplies", reliability: 86, unitCost: 60, relationship: 60, availableUnits: 100 },
-  { id: "supplier-2", name: "Value Wholesale", reliability: 68, unitCost: 48, relationship: 45, availableUnits: 80 },
-]; }
+function starterCustomers(): Customer[] {
+  return [
+    { id: "customer-1", name: "Aarav", segment: "standard", trust: 60, lifetimeValue: 0 },
+    { id: "customer-2", name: "Mira", segment: "premium", trust: 72, lifetimeValue: 0 },
+    { id: "customer-3", name: "Kabir", segment: "budget", trust: 52, lifetimeValue: 0 },
+  ];
+}
+function starterSuppliers(): Supplier[] {
+  return [
+    { id: "supplier-1", name: "Prime Supplies", reliability: 86, unitCost: 60, relationship: 60, availableUnits: 100 },
+    { id: "supplier-2", name: "Value Wholesale", reliability: 68, unitCost: 48, relationship: 45, availableUnits: 80 },
+  ];
+}
 function starterEconomy(): EconomyState { return createEconomyState([createProduct({ name: "Core Product", category: "starter", sellingPrice: 120, productionCost: 60, quality: 70, demandScore: 65, inventory: 20 })]); }
 function updateMemory(memories: CharacterMemory[], memory: CharacterMemory): CharacterMemory[] { return [...memories, memory].slice(-8); }
 
-function generateEvent(day: number, business: Business): SimulationEvent {
-  const cycle = day % 5;
-  if (cycle === 1) return { id: `event-${day}`, day, title: "Supplier price increase", message: "Your main supplier says input costs will rise by 12%. Decide how to protect your margin.", choices: [choice("accept", "Accept the increase", { cash: -900, reputation: 1, inventory: 12 }), choice("negotiate", "Negotiate a smaller increase", { cash: -450, reputation: 2, supplierRelationship: 4, inventory: 10 }), choice("switch", "Find another supplier", { cash: -250, reputation: -1, supplierRelationship: -6, inventory: 5 })] };
-  if (cycle === 2) return { id: `event-${day}`, day, title: "Customer demand spike", message: "A local trend is driving extra demand. You can invest in stock or protect your cash.", choices: [choice("stock", "Buy extra inventory", { cash: -1_200, revenue: 2_400, reputation: 1, inventory: 30, customers: 5 }), choice("normal", "Keep operations unchanged", { revenue: 800, customers: 2, inventory: -8 }), choice("premium", "Raise prices and test demand", { revenue: 1_400, reputation: -1, customers: 1, inventory: -6 })] };
-  if (cycle === 3) return { id: `event-${day}`, day, title: "Customer complaint", message: "A visible customer says their order was late. Your response will affect trust and reputation.", choices: [choice("refund", "Refund and apologize", { cash: -300, reputation: 3, customerTrust: 6 }), choice("replace", "Replace the order", { cash: -180, reputation: 2, customerTrust: 4 }), choice("defend", "Refuse compensation", { reputation: -4, customerTrust: -8 })] };
-  if (cycle === 4) return { id: `event-${day}`, day, title: "Competitor move", message: "A nearby competitor has launched a discount campaign. You must decide whether to react.", choices: [choice("match", "Match their discount", { cash: -500, revenue: 1_500, reputation: 1, customers: 3 }), choice("differentiate", "Differentiate on quality", { revenue: 1_100, reputation: 3, customers: 2 }), choice("ignore", "Ignore the campaign", { revenue: 500, reputation: -1 })] };
-  return { id: `event-${day}`, day, title: "Investor introduction", message: `${business.name} has attracted attention. An investor wants a short meeting. Decide whether to pursue growth capital.`, choices: [choice("pitch", "Prepare a growth pitch", { cash: 10_000, reputation: 3, marketShare: 2 }), choice("decline", "Focus on customers instead", { revenue: 600, reputation: 1 })] };
+function generateEvent(day: number, business: Business, market?: SimulationState["market"]): SimulationEvent {
+  return buildDynamicEvent({ day, business, market }, 1);
 }
 
 function runAgentRound(state: SimulationState): SimulationState {
@@ -78,14 +79,17 @@ export function createBusiness(input: { name: string; idea: string; industry: st
   const workforce = createWorkforce(1);
   const financials = calculateFinancialSnapshot(business, operations, 20 * 60, 0);
   const replay = recordSnapshot(createReplayState(1), business, operations, createMarketState(), financials);
-  return { business, operations, market: createMarketState(), economy: starterEconomy(), agents: { customers: createCustomerAgents(), suppliers: createSupplierAgents(), competitors: createCompetitorAgents(), investors: createInvestorAgents(), lastDecisions: [] }, workforce, financials, consequences: createConsequenceState(), scenarios: createScenarioState(1), replay, outcomes: [], events: [generateEvent(1, business)], log: [`Day 1: ${business.name} opened in ${business.industry} with the idea “${business.idea}” and ₹${startingCash.toLocaleString("en-IN")} starting capital.`] };
+  const initialState: SimulationState = { business, operations, market: createMarketState(), economy: starterEconomy(), agents: { customers: createCustomerAgents(), suppliers: createSupplierAgents(), competitors: createCompetitorAgents(), investors: createInvestorAgents(), lastDecisions: [] }, workforce, financials, consequences: createConsequenceState(), scenarios: createScenarioState(1), replay, outcomes: [], events: [generateEvent(1, business)], log: [`Day 1: ${business.name} opened in ${business.industry} with the idea “${business.idea}” and ₹${startingCash.toLocaleString("en-IN")} starting capital.`] };
+  assertSimulationState(initialState);
+  return initialState;
 }
 
 export function advanceDay(state: SimulationState): SimulationState {
   const { business } = state; const operations = state.operations ?? defaultOperations(); const previousMarket = state.market ?? createMarketState();
   const market = advanceMarket(business.day + 1, business, operations, previousMarket);
   const scenarioResult = advanceScenarios(state.scenarios ?? createScenarioState(1), business);
-  const consequenceResult = advanceConsequences(state.consequences ?? createConsequenceState(), business.day + 1);
+  const legacyConsequenceResult = advanceConsequences(state.consequences ?? createConsequenceState(), business.day + 1);
+  const phase1Resolved = resolvePhase1Consequences({ ...state, consequences: legacyConsequenceResult.state }, business.day + 1);
   const fixedExpense = STRUCTURE_EXPENSE[business.structure] + operations.employees * 150;
   const economyBefore = state.economy ?? starterEconomy();
   const synchronizedProducts: Product[] = economyBefore.products.map((product, index) => index === 0 ? { ...product, sellingPrice: operations.price, quality: operations.quality, inventory: business.inventory, demandScore: clamp(product.demandScore + operations.brandAwareness / 20) } : product);
@@ -98,13 +102,15 @@ export function advanceDay(state: SimulationState): SimulationState {
   const nextWorkforce = advanceWorkforce(state.workforce ?? createWorkforce(business.day), nextOperations, nextBusiness);
   const financials = calculateFinancialSnapshot(nextBusiness, nextOperations, productInventory * 60, nextWorkforce.payroll);
   const supplyChain = economyResult.economy.supplyChain;
-  const advanced: SimulationState = { business: nextBusiness, operations: nextOperations, market, economy: economyResult.economy, agents: state.agents, workforce: nextWorkforce, financials, consequences: consequenceResult.state, scenarios: scenarioResult.state, replay: state.replay, outcomes: state.outcomes ?? [], events: [generateEvent(nextBusiness.day, nextBusiness)], log: [...state.log, `Day ${nextBusiness.day}: sold ${unitsSold} units for ₹${revenue.toLocaleString("en-IN")}; produced ${economyResult.unitsProduced}; delivered ${economyResult.unitsDelivered}; procurement ₹${economyResult.procurementSpend.toLocaleString("en-IN")}; supply-chain risk ${economyResult.supplyChainRisk}/100; inventory ${productInventory}; raw materials ${supplyChain?.rawMaterialInventory ?? 0}; ${explainMarketPosition(nextOperations, market)}`] };
+  const advanced: SimulationState = { business: nextBusiness, operations: nextOperations, market, economy: economyResult.economy, agents: state.agents, workforce: nextWorkforce, financials, consequences: phase1Resolved.state.consequences, scenarios: scenarioResult.state, replay: state.replay, outcomes: state.outcomes ?? [], events: [generateEvent(nextBusiness.day, nextBusiness, market)], log: [...state.log, `Day ${nextBusiness.day}: sold ${unitsSold} units for ₹${revenue.toLocaleString("en-IN")}; produced ${economyResult.unitsProduced}; delivered ${economyResult.unitsDelivered}; procurement ₹${economyResult.procurementSpend.toLocaleString("en-IN")}; supply-chain risk ${economyResult.supplyChainRisk}/100; inventory ${productInventory}; raw materials ${supplyChain?.rawMaterialInventory ?? 0}; ${explainMarketPosition(nextOperations, market)}`] };
   const reacted = runAgentRound(advanced);
   const replay = recordSnapshot(state.replay ?? createReplayState(1), reacted.business, reacted.operations, reacted.market, financials);
   const reactionLog = reacted.agents?.lastDecisions.slice(0, 4).map((decision) => `${decision.agentId}: ${decision.action} — ${decision.rationale}`) ?? [];
   const scenarioLog = scenarioResult.triggered.map((scenario) => `Scenario: ${scenario.title} — ${scenario.description}`);
-  const consequenceLog = consequenceResult.explanations;
-  return { ...reacted, replay, log: [...reacted.log, ...reactionLog, ...scenarioLog, ...consequenceLog] };
+  const consequenceLog = [...phase1Resolved.explanations, ...legacyConsequenceResult.explanations];
+  const result: SimulationState = { ...reacted, replay, log: [...reacted.log, ...reactionLog, ...scenarioLog, ...consequenceLog] };
+  assertSimulationState(result);
+  return result;
 }
 
 export function applyChoice(state: SimulationState, selected: SimulationChoice): SimulationState {
@@ -118,9 +124,12 @@ export function applyChoice(state: SimulationState, selected: SimulationChoice):
   const outcome = scoreDecisionOutcome(selected.id, selected.label, business.day, effects);
   const delayed = Object.fromEntries(Object.entries(effects).filter(([key]) => key === "reputation" || key === "marketShare").map(([key, value]) => [key, value * 0.5]));
   const consequence = Object.keys(delayed).length ? consequenceFromChoice(state, selected.id, delayed, 2, `The delayed effect of “${selected.label}” became visible.`) : undefined;
-  const consequenceState = consequence ? scheduleConsequence(state.consequences ?? createConsequenceState(), consequence) : state.consequences;
+  const legacyConsequenceState = consequence ? scheduleConsequence(state.consequences ?? createConsequenceState(), consequence) : state.consequences;
+  const phase1State = schedulePhase1Consequences({ ...state, business: nextBusiness, economy, consequences: legacyConsequenceState }, selected, business.day, "player-choice");
   const replay = recordDecision(state.replay ?? createReplayState(1), selected.id);
-  return { ...state, business: nextBusiness, economy, consequences: consequenceState, replay, outcomes: [...(state.outcomes ?? []), outcome].slice(-100), events: [], log: [...state.log, `Day ${business.day}: chose “${selected.label}”.`] };
+  const result: SimulationState = { ...phase1State, replay, outcomes: [...(state.outcomes ?? []), outcome].slice(-100), events: [], log: [...state.log, `Day ${business.day}: chose “${selected.label}”.`] };
+  assertSimulationState(result);
+  return result;
 }
 
 export function getRunAssessment(state: SimulationState) { return assessRun(state.business, state.outcomes ?? []); }
