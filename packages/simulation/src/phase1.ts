@@ -1,4 +1,4 @@
-import type { Business, MarketState, SimulationChoice, SimulationEvent, SimulationState } from "@enterpriseverse/types";
+import type { Business, Consequence, MarketState, SimulationChoice, SimulationEvent, SimulationState } from "@enterpriseverse/types";
 
 export type Phase1EffectKey = "cash" | "revenue" | "expenses" | "reputation" | "inventory" | "customers" | "marketShare" | "customerTrust" | "supplierRelationship" | "quality" | "brandAwareness" | "customerSatisfaction" | "debt";
 
@@ -17,14 +17,6 @@ export interface Phase1CausalRule {
   delayed?: Array<{ delayDays: number; effects: Partial<Record<Phase1EffectKey, number>>; explanation: string }>;
 }
 
-export interface Phase1ScheduledConsequence {
-  id: string;
-  source: string;
-  dueDay: number;
-  effects: Partial<Record<Phase1EffectKey, number>>;
-  explanation: string;
-}
-
 const clamp = (value: number, min = 0, max = 100): number => Math.max(min, Math.min(max, value));
 
 /** Small deterministic PRNG. Simulation decisions must never depend on Math.random(). */
@@ -41,8 +33,8 @@ export function createSeededRandom(seed: number): () => number {
 
 export function stableSeed(...parts: Array<string | number>): number {
   let hash = 2166136261;
-  for (const part of parts.join("|") ) {
-    hash ^= part.charCodeAt(0);
+  for (const character of parts.join("|")) {
+    hash ^= character.charCodeAt(0);
     hash = Math.imul(hash, 16777619);
   }
   return hash >>> 0;
@@ -52,57 +44,42 @@ function choice(id: string, label: string, effects: Record<string, number>): Sim
   return { id, label, effects };
 }
 
-/**
- * Release 1 event director. Events are selected from business state rather than a day modulo cycle.
- * The seed only breaks ties, so the same state + seed always produces the same event.
- */
+/** Release 1 event director. Events are selected from business state rather than a day modulo cycle. */
 export function buildDynamicEvent(context: Phase1RuleContext, seed = 1): SimulationEvent {
   const { day, business, market } = context;
   const rules: Phase1CausalRule[] = [
     {
-      id: "cash-pressure",
-      label: "Cash runway pressure",
-      priority: business.cash < 3_000 ? 100 : business.cash < 7_500 ? 70 : 0,
+      id: "cash-pressure", label: "Cash runway pressure", priority: business.cash < 3_000 ? 100 : business.cash < 7_500 ? 70 : 0,
       when: () => business.cash < 7_500,
       choice: choice("protect-cash", "Protect cash and slow growth", { cash: 450, revenue: -350, reputation: -1, marketShare: -0.1 }),
       delayed: [{ delayDays: 2, effects: { reputation: -2 }, explanation: "Slower service investment is beginning to affect customer confidence." }],
     },
     {
-      id: "stockout",
-      label: "Inventory shortage",
-      priority: business.inventory <= 5 ? 95 : business.inventory <= 12 ? 60 : 0,
+      id: "stockout", label: "Inventory shortage", priority: business.inventory <= 5 ? 95 : business.inventory <= 12 ? 60 : 0,
       when: () => business.inventory <= 12,
       choice: choice("expedite-stock", "Pay to expedite inventory", { cash: -700, inventory: 18, reputation: 1 }),
       delayed: [{ delayDays: 1, effects: { expenses: 250 }, explanation: "Expedited logistics cost more than normal procurement." }],
     },
     {
-      id: "demand-surge",
-      label: "Demand surge",
-      priority: market && market.demandIndex >= 110 ? 90 : 0,
+      id: "demand-surge", label: "Demand surge", priority: market && market.demandIndex >= 110 ? 90 : 0,
       when: () => Boolean(market && market.demandIndex >= 110),
       choice: choice("capture-demand", "Invest in stock to capture demand", { cash: -900, inventory: 25, revenue: 1_800, customers: 4, reputation: 2 }),
       delayed: [{ delayDays: 2, effects: { cash: 700, marketShare: 0.4 }, explanation: "Customers remember the business that stayed available during the surge." }],
     },
     {
-      id: "competitive-price",
-      label: "Competitor price attack",
-      priority: market && market.competitivePressure >= 65 ? 85 : 0,
+      id: "competitive-price", label: "Competitor price attack", priority: market && market.competitivePressure >= 65 ? 85 : 0,
       when: () => Boolean(market && market.competitivePressure >= 65),
       choice: choice("differentiate", "Differentiate on quality instead of cutting price", { cash: -400, reputation: 3, customers: 2, marketShare: 0.3 }),
       delayed: [{ delayDays: 3, effects: { customerTrust: 4 }, explanation: "Consistent quality improves trust after a competitor price war." }],
     },
     {
-      id: "reputation-recovery",
-      label: "Reputation recovery",
-      priority: business.reputation < 40 ? 80 : 0,
+      id: "reputation-recovery", label: "Reputation recovery", priority: business.reputation < 40 ? 80 : 0,
       when: () => business.reputation < 40,
       choice: choice("repair-trust", "Fund a customer recovery programme", { cash: -500, reputation: 7, customerTrust: 8, customers: 1 }),
       delayed: [{ delayDays: 3, effects: { marketShare: 0.25 }, explanation: "Trust recovery converts into stronger word-of-mouth over time." }],
     },
     {
-      id: "supplier-negotiation",
-      label: "Supplier negotiation window",
-      priority: business.suppliers.some((supplier) => supplier.relationship < 50) ? 55 : 20,
+      id: "supplier-negotiation", label: "Supplier negotiation window", priority: business.suppliers.some((supplier) => supplier.relationship < 50) ? 55 : 20,
       when: () => true,
       choice: choice("negotiate-supplier", "Negotiate a longer-term supplier commitment", { cash: -300, supplierRelationship: 7, inventory: 8 }),
       delayed: [{ delayDays: 2, effects: { cash: 500, supplierRelationship: 3 }, explanation: "The supplier rewards a more predictable relationship with better terms." }],
@@ -114,18 +91,12 @@ export function buildDynamicEvent(context: Phase1RuleContext, seed = 1): Simulat
   const tied = eligible.filter((rule) => rule.priority === topPriority);
   const random = createSeededRandom(stableSeed(seed, day, business.id, business.cash, business.inventory));
   const selected = tied[Math.floor(random() * tied.length)] ?? rules[rules.length - 1];
-  const message = `${selected.label}. Your current cash is ₹${Math.round(business.cash).toLocaleString("en-IN")}, inventory is ${Math.round(business.inventory)} units, and reputation is ${Math.round(business.reputation)}/100.`;
-
   return {
     id: `phase1-${selected.id}-day-${day}`,
     day,
     title: selected.label,
-    message,
-    choices: [
-      selected.choice,
-      choice("wait-and-observe", "Wait and gather more information", { reputation: 0, marketShare: 0 }),
-      choice("act-conservatively", "Take a conservative middle path", { cash: -150, reputation: 1, marketShare: 0.05 }),
-    ],
+    message: `${selected.label}. Your current cash is ₹${Math.round(business.cash).toLocaleString("en-IN")}, inventory is ${Math.round(business.inventory)} units, and reputation is ${Math.round(business.reputation)}/100.`,
+    choices: [selected.choice, choice("wait-and-observe", "Wait and gather more information", { reputation: 0, marketShare: 0 }), choice("act-conservatively", "Take a conservative middle path", { cash: -150, reputation: 1, marketShare: 0.05 })],
   };
 }
 
@@ -140,20 +111,21 @@ export function schedulePhase1Consequences(state: SimulationState, selected: Sim
   ];
   const rule = rules.find((candidate) => candidate.match === selected.id);
   if (!rule) return state;
-  const pending = [...(state.consequences?.pending ?? []), {
+  const consequence: Consequence = {
     id: `phase1-${source}-${selected.id}-${day}`,
     source,
-    dueDay: day + rule.delayDays,
+    day,
+    delayDays: rule.delayDays,
     effects: rule.effects,
     explanation: rule.explanation,
-  }];
-  return { ...state, consequences: { ...(state.consequences ?? { pending: [], resolved: [] }), pending } };
+  };
+  return { ...state, consequences: { ...(state.consequences ?? { pending: [], resolved: [] }), pending: [...(state.consequences?.pending ?? []), consequence] } };
 }
 
 export function resolvePhase1Consequences(state: SimulationState, day: number): { state: SimulationState; explanations: string[] } {
   const consequenceState = state.consequences ?? { pending: [], resolved: [] };
-  const due = consequenceState.pending.filter((item) => item.dueDay <= day);
-  const pending = consequenceState.pending.filter((item) => item.dueDay > day);
+  const due = consequenceState.pending.filter((item) => item.day + item.delayDays <= day);
+  const pending = consequenceState.pending.filter((item) => item.day + item.delayDays > day);
   if (!due.length) return { state: { ...state, consequences: consequenceState }, explanations: [] };
 
   let business = { ...state.business };
@@ -173,10 +145,7 @@ export function resolvePhase1Consequences(state: SimulationState, day: number): 
       business = { ...business, customers: [...business.customers, ...Array.from({ length: count }, (_, index) => ({ id: `phase1-customer-${day}-${index}`, name: `Returning Customer ${day}-${index + 1}`, segment: "standard" as const, trust: 65, lifetimeValue: 0 }))] };
     }
   }
-  return {
-    state: { ...state, business, consequences: { pending, resolved: [...consequenceState.resolved, ...due] } },
-    explanations: due.map((item) => `Delayed consequence resolved: ${item.explanation}`),
-  };
+  return { state: { ...state, business, consequences: { pending, resolved: [...consequenceState.resolved, ...due] } }, explanations: due.map((item) => `Delayed consequence resolved: ${item.explanation}`) };
 }
 
 export interface SimulationInvariantFailure { code: string; message: string; }
