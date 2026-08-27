@@ -1,4 +1,5 @@
 import type { Business, Consequence, MarketState, SimulationChoice, SimulationEvent, SimulationState } from "@enterpriseverse/types";
+import { validateSimulationStateV1, assertSimulationStateV1 } from "./invariants";
 
 export type Phase1EffectKey = "cash" | "revenue" | "expenses" | "reputation" | "inventory" | "customers" | "marketShare" | "customerTrust" | "supplierRelationship" | "quality" | "brandAwareness" | "customerSatisfaction" | "debt";
 
@@ -48,42 +49,12 @@ function choice(id: string, label: string, effects: Record<string, number>): Sim
 export function buildDynamicEvent(context: Phase1RuleContext, seed = 1): SimulationEvent {
   const { day, business, market } = context;
   const rules: Phase1CausalRule[] = [
-    {
-      id: "cash-pressure", label: "Cash runway pressure", priority: business.cash < 3_000 ? 100 : business.cash < 7_500 ? 70 : 0,
-      when: () => business.cash < 7_500,
-      choice: choice("protect-cash", "Protect cash and slow growth", { cash: 450, revenue: -350, reputation: -1, marketShare: -0.1 }),
-      delayed: [{ delayDays: 2, effects: { reputation: -2 }, explanation: "Slower service investment is beginning to affect customer confidence." }],
-    },
-    {
-      id: "stockout", label: "Inventory shortage", priority: business.inventory <= 5 ? 95 : business.inventory <= 12 ? 60 : 0,
-      when: () => business.inventory <= 12,
-      choice: choice("expedite-stock", "Pay to expedite inventory", { cash: -700, inventory: 18, reputation: 1 }),
-      delayed: [{ delayDays: 1, effects: { expenses: 250 }, explanation: "Expedited logistics cost more than normal procurement." }],
-    },
-    {
-      id: "demand-surge", label: "Demand surge", priority: market && market.demandIndex >= 110 ? 90 : 0,
-      when: () => Boolean(market && market.demandIndex >= 110),
-      choice: choice("capture-demand", "Invest in stock to capture demand", { cash: -900, inventory: 25, revenue: 1_800, customers: 4, reputation: 2 }),
-      delayed: [{ delayDays: 2, effects: { cash: 700, marketShare: 0.4 }, explanation: "Customers remember the business that stayed available during the surge." }],
-    },
-    {
-      id: "competitive-price", label: "Competitor price attack", priority: market && market.competitivePressure >= 65 ? 85 : 0,
-      when: () => Boolean(market && market.competitivePressure >= 65),
-      choice: choice("differentiate", "Differentiate on quality instead of cutting price", { cash: -400, reputation: 3, customers: 2, marketShare: 0.3 }),
-      delayed: [{ delayDays: 3, effects: { customerTrust: 4 }, explanation: "Consistent quality improves trust after a competitor price war." }],
-    },
-    {
-      id: "reputation-recovery", label: "Reputation recovery", priority: business.reputation < 40 ? 80 : 0,
-      when: () => business.reputation < 40,
-      choice: choice("repair-trust", "Fund a customer recovery programme", { cash: -500, reputation: 7, customerTrust: 8, customers: 1 }),
-      delayed: [{ delayDays: 3, effects: { marketShare: 0.25 }, explanation: "Trust recovery converts into stronger word-of-mouth over time." }],
-    },
-    {
-      id: "supplier-negotiation", label: "Supplier negotiation window", priority: business.suppliers.some((supplier) => supplier.relationship < 50) ? 55 : 20,
-      when: () => true,
-      choice: choice("negotiate-supplier", "Negotiate a longer-term supplier commitment", { cash: -300, supplierRelationship: 7, inventory: 8 }),
-      delayed: [{ delayDays: 2, effects: { cash: 500, supplierRelationship: 3 }, explanation: "The supplier rewards a more predictable relationship with better terms." }],
-    },
+    { id: "cash-pressure", label: "Cash runway pressure", priority: business.cash < 3_000 ? 100 : business.cash < 7_500 ? 70 : 0, when: () => business.cash < 7_500, choice: choice("protect-cash", "Protect cash and slow growth", { cash: 450, revenue: -350, reputation: -1, marketShare: -0.1 }), delayed: [{ delayDays: 2, effects: { reputation: -2 }, explanation: "Slower service investment is beginning to affect customer confidence." }] },
+    { id: "stockout", label: "Inventory shortage", priority: business.inventory <= 5 ? 95 : business.inventory <= 12 ? 60 : 0, when: () => business.inventory <= 12, choice: choice("expedite-stock", "Pay to expedite inventory", { cash: -700, inventory: 18, reputation: 1 }), delayed: [{ delayDays: 1, effects: { expenses: 250 }, explanation: "Expedited logistics cost more than normal procurement." }] },
+    { id: "demand-surge", label: "Demand surge", priority: market && market.demandIndex >= 110 ? 90 : 0, when: () => Boolean(market && market.demandIndex >= 110), choice: choice("capture-demand", "Invest in stock to capture demand", { cash: -900, inventory: 25, revenue: 1_800, customers: 4, reputation: 2 }), delayed: [{ delayDays: 2, effects: { cash: 700, marketShare: 0.4 }, explanation: "Customers remember the business that stayed available during the surge." }] },
+    { id: "competitive-price", label: "Competitor price attack", priority: market && market.competitivePressure >= 65 ? 85 : 0, when: () => Boolean(market && market.competitivePressure >= 65), choice: choice("differentiate", "Differentiate on quality instead of cutting price", { cash: -400, reputation: 3, customers: 2, marketShare: 0.3 }), delayed: [{ delayDays: 3, effects: { customerTrust: 4 }, explanation: "Consistent quality improves trust after a competitor price war." }] },
+    { id: "reputation-recovery", label: "Reputation recovery", priority: business.reputation < 40 ? 80 : 0, when: () => business.reputation < 40, choice: choice("repair-trust", "Fund a customer recovery programme", { cash: -500, reputation: 7, customerTrust: 8, customers: 1 }), delayed: [{ delayDays: 3, effects: { marketShare: 0.25 }, explanation: "Trust recovery converts into stronger word-of-mouth over time." }] },
+    { id: "supplier-negotiation", label: "Supplier negotiation window", priority: business.suppliers.some((supplier) => supplier.relationship < 50) ? 55 : 20, when: () => true, choice: choice("negotiate-supplier", "Negotiate a longer-term supplier commitment", { cash: -300, supplierRelationship: 7, inventory: 8 }), delayed: [{ delayDays: 2, effects: { cash: 500, supplierRelationship: 3 }, explanation: "The supplier rewards a more predictable relationship with better terms." }] },
   ];
 
   const eligible = rules.filter((rule) => rule.when(context)).sort((a, b) => b.priority - a.priority || a.id.localeCompare(b.id));
@@ -91,13 +62,7 @@ export function buildDynamicEvent(context: Phase1RuleContext, seed = 1): Simulat
   const tied = eligible.filter((rule) => rule.priority === topPriority);
   const random = createSeededRandom(stableSeed(seed, day, business.id, business.cash, business.inventory));
   const selected = tied[Math.floor(random() * tied.length)] ?? rules[rules.length - 1];
-  return {
-    id: `phase1-${selected.id}-day-${day}`,
-    day,
-    title: selected.label,
-    message: `${selected.label}. Your current cash is ₹${Math.round(business.cash).toLocaleString("en-IN")}, inventory is ${Math.round(business.inventory)} units, and reputation is ${Math.round(business.reputation)}/100.`,
-    choices: [selected.choice, choice("wait-and-observe", "Wait and gather more information", { reputation: 0, marketShare: 0 }), choice("act-conservatively", "Take a conservative middle path", { cash: -150, reputation: 1, marketShare: 0.05 })],
-  };
+  return { id: `phase1-${selected.id}-day-${day}`, day, title: selected.label, message: `${selected.label}. Your current cash is ₹${Math.round(business.cash).toLocaleString("en-IN")}, inventory is ${Math.round(business.inventory)} units, and reputation is ${Math.round(business.reputation)}/100.`, choices: [selected.choice, choice("wait-and-observe", "Wait and gather more information", { reputation: 0, marketShare: 0 }), choice("act-conservatively", "Take a conservative middle path", { cash: -150, reputation: 1, marketShare: 0.05 })] };
 }
 
 export function schedulePhase1Consequences(state: SimulationState, selected: SimulationChoice, day: number, source: string): SimulationState {
@@ -111,14 +76,7 @@ export function schedulePhase1Consequences(state: SimulationState, selected: Sim
   ];
   const rule = rules.find((candidate) => candidate.match === selected.id);
   if (!rule) return state;
-  const consequence: Consequence = {
-    id: `phase1-${source}-${selected.id}-${day}`,
-    source,
-    day,
-    delayDays: rule.delayDays,
-    effects: rule.effects,
-    explanation: rule.explanation,
-  };
+  const consequence: Consequence = { id: `phase1-${source}-${selected.id}-${day}`, source, day, delayDays: rule.delayDays, effects: rule.effects, explanation: rule.explanation };
   return { ...state, consequences: { ...(state.consequences ?? { pending: [], resolved: [] }), pending: [...(state.consequences?.pending ?? []), consequence] } };
 }
 
@@ -131,15 +89,7 @@ export function resolvePhase1Consequences(state: SimulationState, day: number): 
   let business = { ...state.business };
   for (const item of due) {
     const effects = item.effects;
-    business = {
-      ...business,
-      cash: Math.max(0, business.cash + (effects.cash ?? 0)),
-      revenue: Math.max(0, business.revenue + (effects.revenue ?? 0)),
-      expenses: Math.max(0, business.expenses + (effects.expenses ?? 0)),
-      inventory: Math.max(0, business.inventory + (effects.inventory ?? 0)),
-      reputation: clamp(business.reputation + (effects.reputation ?? 0)),
-      marketShare: clamp(business.marketShare + (effects.marketShare ?? 0)),
-    };
+    business = { ...business, cash: Math.max(0, business.cash + (effects.cash ?? 0)), revenue: Math.max(0, business.revenue + (effects.revenue ?? 0)), expenses: Math.max(0, business.expenses + (effects.expenses ?? 0)), inventory: Math.max(0, business.inventory + (effects.inventory ?? 0)), reputation: clamp(business.reputation + (effects.reputation ?? 0)), marketShare: clamp(business.marketShare + (effects.marketShare ?? 0)) };
     if (effects.customers) {
       const count = Math.max(0, Math.round(effects.customers));
       business = { ...business, customers: [...business.customers, ...Array.from({ length: count }, (_, index) => ({ id: `phase1-customer-${day}-${index}`, name: `Returning Customer ${day}-${index + 1}`, segment: "standard" as const, trust: 65, lifetimeValue: 0 }))] };
@@ -167,10 +117,12 @@ export function validateSimulationState(state: SimulationState): SimulationInvar
     if (supplier.relationship < 0 || supplier.relationship > 100) failures.push({ code: `supplier-relationship-${supplier.id}`, message: "Supplier relationship must stay within 0..100." });
     if (supplier.reliability < 0 || supplier.reliability > 100) failures.push({ code: `supplier-reliability-${supplier.id}`, message: "Supplier reliability must stay within 0..100." });
   }
-  return failures;
+  failures.push(...validateSimulationStateV1(state));
+  return failures.filter((failure, index, all) => all.findIndex((candidate) => candidate.code === failure.code) === index);
 }
 
 export function assertSimulationState(state: SimulationState): void {
   const failures = validateSimulationState(state);
   if (failures.length) throw new Error(`Simulation invariant violation: ${failures.map((failure) => `${failure.code}: ${failure.message}`).join(" | ")}`);
+  assertSimulationStateV1(state);
 }
