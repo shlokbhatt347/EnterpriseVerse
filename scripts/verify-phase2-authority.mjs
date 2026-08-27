@@ -17,8 +17,12 @@ for (const [source, marker, label] of required) {
   if (!source.includes(marker)) throw new Error(`Phase 2 contract missing: ${label}`);
 }
 
-if (migration.includes("phase22_submit_decision(uuid, integer, text);")) {
-  throw new Error("Legacy three-argument submission contract must not be restored.");
+// The migration must remove the legacy 3-argument overload, but must never
+// recreate or grant access to that overload. Merely mentioning it in a DROP
+// FUNCTION statement is intentional and is not a contract violation.
+const legacyCreateOrGrant = /(?:create\s+or\s+replace\s+function|grant\s+execute\s+on\s+function)\s+public\.phase22_submit_decision\s*\(\s*uuid\s*,\s*integer\s*,\s*text\s*\)/i;
+if (legacyCreateOrGrant.test(migration)) {
+  throw new Error("Legacy three-argument submission contract must not be restored or granted.");
 }
 
 console.log(`Phase 2 authority contract verified (${required.length} checks).`);
