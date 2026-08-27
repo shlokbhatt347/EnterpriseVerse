@@ -1,6 +1,6 @@
 import pytest
 
-from .phase2_authority import validate_decision
+from phase2_authority import validate_decision
 
 
 def test_validate_decision_uses_authenticated_identity():
