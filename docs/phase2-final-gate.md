@@ -1,0 +1,1 @@
+Phase 2 final gate: all required GitHub workflows must be green on the final commit before merge.
