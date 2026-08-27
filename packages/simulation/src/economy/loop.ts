@@ -15,9 +15,9 @@ export interface EconomyDayResult {
   supplyChainRisk: number;
 }
 
-export function createEconomyState(products: Product[] = [], purchaseOrders: PurchaseOrder[] = []): EconomyState {
+export function createEconomyState(products: Product[] = [], purchaseOrders: PurchaseOrder[] = [], openingCash = 0): EconomyState {
   const firstProduct = products[0];
-  return { products, purchaseOrders, sales: [], accounting: summarizeAccounting([], [], products), supplyChain: createSupplyChainState(firstProduct) };
+  return { products, purchaseOrders, sales: [], accounting: summarizeAccounting([], [], products, Math.max(0, openingCash)), supplyChain: createSupplyChainState(firstProduct) };
 }
 
 export function placePurchaseOrder(
@@ -53,9 +53,7 @@ export function advanceEconomyDay(
     if (order.status !== "ordered" || order.deliveryDay > day) return order;
     if (!productById.has(order.productId)) return { ...order, status: "cancelled" };
     const supplier = supplierById.get(order.supplierId);
-    if ((supplyChain.disruption === "supplier_shortage" || supplyChain.disruption === "supplier_delay") && supplier?.id === primarySupplier?.id) {
-      return { ...order, deliveryDay: order.deliveryDay + 1 };
-    }
+    if ((supplyChain.disruption === "supplier_shortage" || supplyChain.disruption === "supplier_delay") && supplier?.id === primarySupplier?.id) return { ...order, deliveryDay: order.deliveryDay + 1 };
     supplyChain = { ...supplyChain, rawMaterialInventory: supplyChain.rawMaterialInventory + order.quantity };
     procurementSpend += order.quantity * order.unitCost;
     unitsDelivered += order.quantity;
@@ -65,11 +63,7 @@ export function advanceEconomyDay(
 
   const firstProduct = products[0];
   if (firstProduct) {
-    supplyChain = {
-      ...supplyChain,
-      productionCostPerUnit: Math.max(1, Math.round(firstProduct.productionCost)),
-      productionQuality: firstProduct.quality,
-    };
+    supplyChain = { ...supplyChain, productionCostPerUnit: Math.max(1, Math.round(firstProduct.productionCost)), productionQuality: firstProduct.quality };
     const finishedInventory = products.reduce((total, product) => total + product.inventory, 0);
     const outstandingUnits = purchaseOrders.filter((order) => order.status === "ordered").reduce((total, order) => total + order.quantity, 0);
     const desiredProduction = Math.max(0, supplyChain.targetStock - finishedInventory - outstandingUnits);
@@ -110,52 +104,15 @@ export function advanceEconomyDay(
 
   const newLedgerEntries = [...purchaseEntries, ...saleEntries];
   const ledger = newLedgerEntries.length === 0 ? state.accounting.ledger : [...state.accounting.ledger, ...newLedgerEntries];
-
-  const previousProducts = state.products;
-  const currentCostById = new Map(products.map((product) => [product.id, product.productionCost]));
-  const sameProductCosts = previousProducts.length === products.length && previousProducts.every((previous) => currentCostById.get(previous.id) === previous.productionCost);
-
-  let accounting: EconomyState["accounting"];
-  if (sameProductCosts) {
-    let saleCashIn = 0;
-    let purchaseCashOut = 0;
-    let saleCost = 0;
-    for (const entry of saleEntries) {
-      saleCashIn += entry.credit;
-      saleCost += entry.debit;
-    }
-    for (const entry of purchaseEntries) purchaseCashOut += entry.debit;
-
-    const cashIn = state.accounting.cashIn + saleCashIn;
-    const cashOut = state.accounting.cashOut + purchaseCashOut + saleCost;
-    accounting = {
-      ...state.accounting,
-      cashIn,
-      cashOut,
-      grossProfit: state.accounting.grossProfit + saleCashIn - saleCost,
-      netProfit: cashIn - cashOut,
-      inventoryValue: inventoryValue(products),
-      ledger,
-    };
-  } else {
-    accounting = summarizeAccounting(ledger, sales, products);
-  }
+  const accounting = summarizeAccounting(ledger, sales, products, state.accounting.openingCash ?? 0);
 
   supplyChain = { ...supplyChain, overstockUnits: Math.max(0, products.reduce((total, product) => total + product.inventory, 0) - supplyChain.targetStock) };
 
-  return {
-    economy: { products, purchaseOrders, sales, accounting, supplyChain },
-    revenue,
-    procurementSpend,
-    unitsSold,
-    unitsDelivered,
-    unitsProduced: productionResult.producedUnits,
-    supplyChainRisk: evaluateSupplyChainRisk(supplyChain, suppliers),
-  };
+  return { economy: { products, purchaseOrders, sales, accounting, supplyChain }, revenue, procurementSpend, unitsSold, unitsDelivered, unitsProduced: productionResult.producedUnits, supplyChainRisk: evaluateSupplyChainRisk(supplyChain, suppliers) };
 }
 
 export function economySnapshot(state: EconomyState): EconomyState {
-  return { ...state, accounting: summarizeAccounting(state.accounting.ledger, state.sales, state.products) };
+  return { ...state, accounting: summarizeAccounting(state.accounting.ledger, state.sales, state.products, state.accounting.openingCash ?? 0) };
 }
 
 export function currentInventoryValue(state: EconomyState): number {
