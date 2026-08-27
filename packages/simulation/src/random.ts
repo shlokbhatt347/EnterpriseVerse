@@ -1,4 +1,4 @@
-import { stableSeed } from "../phase1";
+import { stableSeed } from "./phase1";
 
 export type RandomStreamName = "market" | "customers" | "suppliers" | "competitors" | "investors" | "scenarios" | "consequences" | "events";
 
