@@ -27,6 +27,7 @@ const normalizeState = (state: SimulationState, seed: number): SimulationState =
   replay: state.replay ? { ...state.replay, seed } : state.replay,
 });
 
+/** Commit only validated state. The old engine remains immutable to callers. */
 const commit = (state: SimulationState, seed: number): SimulationState => {
   const normalized = normalizeState(state, seed);
   assertSimulationState(normalized);
