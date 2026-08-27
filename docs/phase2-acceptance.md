@@ -1,0 +1,1 @@
+Acceptance requires green CI, Quality Gate, and Production Gate on the final branch commit plus successful deployment of the Phase 2 database migration.

@@ -1,6 +1,6 @@
 "use client";
 
-type CompetitionRoom = { id: string; code: string; host_id: string; competition_type: string; status: string; max_players: number; duration_rounds: number; current_round: number; world_seed: number; created_at: string; updated_at: string };
+type CompetitionRoom = { id: string; code: string; host_id: string; competition_type: string; status: string; max_players: number; duration_rounds: number; current_round: number; world_seed: number; created_at: string; updated_at: string; state_version?: number };
 type CompetitionPlayer = { room_id: string; user_id: string; display_name: string; ready: boolean; connected: boolean; joined_at: string };
 type Friend = { id: string; requester_id: string; addressee_id: string; status: "pending" | "accepted" | "declined" | "blocked"; created_at: string; updated_at: string };
 type Person = { user_id: string; display_name: string; email: string | null };
@@ -13,21 +13,7 @@ type FriendInbox = { friends: Friend[]; notifications: FriendRequestNotification
 type CompetitionDecisionRow = { round: number; decision_id: string; submitted_at: string };
 type PlayerRole = "ceo" | "cfo" | "cmo" | "coo" | "cto" | "chro";
 type OnboardingPath = "founder" | "executive" | "explore";
-type PlayerBootstrap = {
-  profile: {
-    user_id: string;
-    display_name: string;
-    avatar_url: string | null;
-    onboarding_path: OnboardingPath;
-    preferred_role: PlayerRole | null;
-    current_business_id: string | null;
-    active_role: PlayerRole | null;
-    onboarding_completed: boolean;
-  } | null;
-  current_business: Record<string, unknown> | null;
-  current_membership: { business_id: string; user_id: string; role: string; joined_at: string } | null;
-};
-
+type PlayerBootstrap = { profile: { user_id: string; display_name: string; avatar_url: string | null; onboarding_path: OnboardingPath; preferred_role: PlayerRole | null; current_business_id: string | null; active_role: PlayerRole | null; onboarding_completed: boolean } | null; current_business: Record<string, unknown> | null; current_membership: { business_id: string; user_id: string; role: string; joined_at: string } | null };
 type EnterpriseInvitation = { id: string; business_id: string; inviter_id: string; invitee_id: string; requested_role: string; status: string; created_at: string; responded_at?: string | null };
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "") ?? "";
@@ -35,88 +21,21 @@ const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 const SESSION_KEY = "enterpriseverse:supabase-session:v1";
 const REQUEST_TIMEOUT_MS = 12_000;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
 function isUuid(value: string) { return UUID_RE.test(value.trim()); }
 function assertUuid(value: string, label: string) { const normalized = value.trim(); if (!isUuid(normalized)) throw new Error(`${label} is invalid.`); return normalized; }
 function session(): StoredSession | null { try { if (typeof window === "undefined") return null; const raw = window.localStorage.getItem(SESSION_KEY); return raw ? JSON.parse(raw) as StoredSession : null; } catch { return null; } }
 function requireSession() { const value = session(); if (!url || !anonKey) throw new Error("Cloud services are not configured."); if (!value?.access_token || !isUuid(value.user.id)) throw new Error("Sign in with email to continue."); return value; }
-
-async function rest<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const current = requireSession();
-  const endpoint = `${url}${path}`;
-  const headers = new Headers(init.headers);
-  headers.set("apikey", anonKey);
-  headers.set("Authorization", `Bearer ${current.access_token}`);
-  headers.set("Content-Type", "application/json");
-  const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-  try {
-    const response = await fetch(endpoint, { ...init, headers, cache: "no-store", signal: controller.signal });
-    const raw = await response.text();
-    let body: unknown = null;
-    try { body = raw ? JSON.parse(raw) : null; } catch { body = raw; }
-    if (!response.ok) {
-      const message = typeof body === "object" && body !== null && "message" in body && typeof body.message === "string" ? body.message
-        : typeof body === "object" && body !== null && "details" in body && typeof body.details === "string" ? body.details
-        : typeof body === "object" && body !== null && "hint" in body && typeof body.hint === "string" ? body.hint
-        : `Cloud request failed (${response.status}).`;
-      throw new Error(message);
-    }
-    return body as T;
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") throw new Error("The cloud request took too long. Please try again.");
-    if (error instanceof TypeError && error.message === "Failed to fetch") throw new Error("Unable to reach the cloud service. Check your connection and try again.");
-    throw error;
-  } finally { window.clearTimeout(timeout); }
-}
-
-export async function getPlayerBootstrap(): Promise<PlayerBootstrap | null> {
-  const result = await rest<PlayerBootstrap | PlayerBootstrap[]>("/rest/v1/rpc/get_player_bootstrap", { method: "POST", body: "{}" });
-  return Array.isArray(result) ? result[0] ?? null : result;
-}
-
-export async function setPlayerOnboarding(path: OnboardingPath, role?: PlayerRole | null) {
-  return rest<boolean>("/rest/v1/rpc/set_player_onboarding", { method: "POST", body: JSON.stringify({ p_path: path, p_role: role ?? null }) });
-}
-
-export async function createRoom(displayName: string, durationRounds = 30) {
-  const normalized = displayName.trim();
-  if (!normalized) throw new Error("Display name is required.");
-  if (normalized.length > 80) throw new Error("Display name is too long.");
-  if (!Number.isInteger(durationRounds) || durationRounds < 5 || durationRounds > 90) throw new Error("Competition length must be between 5 and 90 rounds.");
-  const result = await rest<CompetitionRoom | CompetitionRoom[]>("/rest/v1/rpc/create_competition_room", { method: "POST", body: JSON.stringify({ p_display_name: normalized, p_duration_rounds: durationRounds }) });
-  const room = Array.isArray(result) ? result[0] : result;
-  if (!room || !isUuid(room.id) || !room.code) throw new Error("Room creation completed but the server returned an invalid room.");
-  return room;
-}
-
-export async function loadRoom(roomId: string): Promise<RoomState> {
-  const id = assertUuid(roomId, "Room ID");
-  const result = await rest<RoomState>("/rest/v1/rpc/get_competition_room_state", { method: "POST", body: JSON.stringify({ p_room_id: id }) });
-  if (!result?.room?.id || !Array.isArray(result.players)) throw new Error("The server returned an invalid room state.");
-  return result;
-}
-
-export async function joinRoomByCode(code: string, displayName: string): Promise<JoinResult> {
-  const normalizedCode = code.trim().toUpperCase();
-  const normalizedName = displayName.trim();
-  if (!/^[A-Z0-9]{6}$/.test(normalizedCode)) throw new Error("Enter the 6-character room code.");
-  if (!normalizedName) throw new Error("Display name is required.");
-  if (normalizedName.length > 80) throw new Error("Display name is too long.");
-  const result = await rest<JoinResult>("/rest/v1/rpc/join_competition_room_by_code", { method: "POST", body: JSON.stringify({ p_code: normalizedCode, p_display_name: normalizedName }) });
-  if (!result?.room?.id || !result?.player?.user_id) throw new Error("The server did not confirm your room membership.");
-  return result;
-}
-
-export async function loadMyCompetitionDecisions(roomId: string) {
-  const id = assertUuid(roomId, "Room ID");
-  return rest<CompetitionDecisionRow[]>(`/rest/v1/competition_submissions?select=round,decision_id,submitted_at&room_id=eq.${encodeURIComponent(id)}&order=round.asc`);
-}
-
+function requestId() { if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID(); const bytes = new Uint8Array(16); crypto.getRandomValues(bytes); bytes[6] = (bytes[6] & 0x0f) | 0x40; bytes[8] = (bytes[8] & 0x3f) | 0x80; const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, "0")).join(""); return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`; }
+async function rest<T>(path: string, init: RequestInit = {}): Promise<T> { const current = requireSession(); const endpoint = `${url}${path}`; const headers = new Headers(init.headers); headers.set("apikey", anonKey); headers.set("Authorization", `Bearer ${current.access_token}`); headers.set("Content-Type", "application/json"); const controller = new AbortController(); const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS); try { const response = await fetch(endpoint, { ...init, headers, cache: "no-store", signal: controller.signal }); const raw = await response.text(); let body: unknown = null; try { body = raw ? JSON.parse(raw) : null; } catch { body = raw; } if (!response.ok) { const message = typeof body === "object" && body !== null && "message" in body && typeof body.message === "string" ? body.message : typeof body === "object" && body !== null && "details" in body && typeof body.details === "string" ? body.details : typeof body === "object" && body !== null && "hint" in body && typeof body.hint === "string" ? body.hint : `Cloud request failed (${response.status}).`; throw new Error(message); } return body as T; } catch (error) { if (error instanceof DOMException && error.name === "AbortError") throw new Error("The cloud request took too long. Please try again."); if (error instanceof TypeError && error.message === "Failed to fetch") throw new Error("Unable to reach the cloud service. Check your connection and try again."); throw error; } finally { window.clearTimeout(timeout); } }
+export async function getPlayerBootstrap(): Promise<PlayerBootstrap | null> { const result = await rest<PlayerBootstrap | PlayerBootstrap[]>("/rest/v1/rpc/get_player_bootstrap", { method: "POST", body: "{}" }); return Array.isArray(result) ? result[0] ?? null : result; }
+export async function setPlayerOnboarding(path: OnboardingPath, role?: PlayerRole | null) { return rest<boolean>("/rest/v1/rpc/set_player_onboarding", { method: "POST", body: JSON.stringify({ p_path: path, p_role: role ?? null }) }); }
+export async function createRoom(displayName: string, durationRounds = 30) { const normalized = displayName.trim(); if (!normalized) throw new Error("Display name is required."); if (normalized.length > 80) throw new Error("Display name is too long."); if (!Number.isInteger(durationRounds) || durationRounds < 5 || durationRounds > 90) throw new Error("Competition length must be between 5 and 90 rounds."); const result = await rest<CompetitionRoom | CompetitionRoom[]>("/rest/v1/rpc/create_competition_room", { method: "POST", body: JSON.stringify({ p_display_name: normalized, p_duration_rounds: durationRounds }) }); const room = Array.isArray(result) ? result[0] : result; if (!room || !isUuid(room.id) || !room.code) throw new Error("Room creation completed but the server returned an invalid room."); return room; }
+export async function loadRoom(roomId: string): Promise<RoomState> { const id = assertUuid(roomId, "Room ID"); const result = await rest<RoomState>("/rest/v1/rpc/get_competition_room_state", { method: "POST", body: JSON.stringify({ p_room_id: id }) }); if (!result?.room?.id || !Array.isArray(result.players)) throw new Error("The server returned an invalid room state."); return result; }
+export async function joinRoomByCode(code: string, displayName: string): Promise<JoinResult> { const normalizedCode = code.trim().toUpperCase(); const normalizedName = displayName.trim(); if (!/^[A-Z0-9]{6}$/.test(normalizedCode)) throw new Error("Enter the 6-character room code."); if (!normalizedName) throw new Error("Display name is required."); if (normalizedName.length > 80) throw new Error("Display name is too long."); const result = await rest<JoinResult>("/rest/v1/rpc/join_competition_room_by_code", { method: "POST", body: JSON.stringify({ p_code: normalizedCode, p_display_name: normalizedName }) }); if (!result?.room?.id || !result?.player?.user_id) throw new Error("The server did not confirm your room membership."); return result; }
+export async function loadMyCompetitionDecisions(roomId: string) { const id = assertUuid(roomId, "Room ID"); return rest<CompetitionDecisionRow[]>(`/rest/v1/competition_submissions?select=round,decision_id,submitted_at&room_id=eq.${encodeURIComponent(id)}&order=round.asc`); }
 export async function setReady(roomId: string, ready: boolean) { const id = assertUuid(roomId, "Room ID"); const raw = await rest<CompetitionPlayer | CompetitionPlayer[]>("/rest/v1/rpc/set_competition_ready", { method: "POST", body: JSON.stringify({ p_room_id: id, p_ready: ready }) }); return Array.isArray(raw) ? raw[0] : raw; }
 export async function startRoom(roomId: string) { const id = assertUuid(roomId, "Room ID"); const raw = await rest<CompetitionRoom | CompetitionRoom[]>("/rest/v1/rpc/start_competition_room", { method: "POST", body: JSON.stringify({ p_room_id: id }) }); const room = Array.isArray(raw) ? raw[0] : raw; if (!room?.id) throw new Error("The server did not confirm that the competition started."); return room; }
-export async function submitDecision(roomId: string, round: number, decisionId: string) { const id = assertUuid(roomId, "Room ID"); if (!Number.isInteger(round) || round < 1) throw new Error("Round is invalid."); if (!decisionId.trim() || decisionId.length > 120) throw new Error("Decision is invalid."); return rest<{ submitted: number; players: number; round_resolved: boolean; completed: boolean; current_round: number; results: unknown[] }>("/rest/v1/rpc/phase22_submit_decision", { method: "POST", body: JSON.stringify({ p_room_id: id, p_round: round, p_decision_id: decisionId.trim() }) }); }
-
+export async function submitDecision(roomId: string, round: number, decisionId: string) { const id = assertUuid(roomId, "Room ID"); if (!Number.isInteger(round) || round < 1) throw new Error("Round is invalid."); const normalizedDecision = decisionId.trim(); if (!normalizedDecision || normalizedDecision.length > 120) throw new Error("Decision is invalid."); return rest<{ submitted: number; players: number; round_resolved: boolean; completed: boolean; current_round: number; results: unknown[]; state_version?: number }>("/rest/v1/rpc/phase22_submit_decision", { method: "POST", body: JSON.stringify({ p_room_id: id, p_round: round, p_decision_id: normalizedDecision, p_request_id: requestId() }) }); }
 export async function searchPeople(query: string): Promise<Person[]> { const normalized = query.trim(); if (normalized.length < 2) return []; return rest<Person[]>("/rest/v1/rpc/search_people", { method: "POST", body: JSON.stringify({ p_query: normalized }) }); }
 export async function loadFriendInbox(): Promise<FriendInbox> { const result = await rest<FriendInbox>("/rest/v1/rpc/get_friend_inbox", { method: "POST", body: "{}" }); if (!Array.isArray(result?.friends) || !Array.isArray(result?.notifications)) throw new Error("The server returned an invalid friend inbox."); return result; }
 export async function listFriendNotifications() { const inbox = await loadFriendInbox(); return inbox.notifications; }
