@@ -1,0 +1,1 @@
+Scope is intentionally limited to multiplayer authority, competition lifecycle, submission integrity, concurrency/idempotency, data access, and security boundaries. Product/UI expansion is deferred to later phases.
