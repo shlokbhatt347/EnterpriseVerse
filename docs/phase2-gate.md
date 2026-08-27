@@ -1,0 +1,1 @@
+Final gate: do not merge Phase 2 until the final branch commit has green CI, Quality Gate, and Production Gate, and the connected Supabase migration has applied successfully.

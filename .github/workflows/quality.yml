@@ -36,6 +36,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
+      - name: Verify Phase 2 authority contract
+        run: node scripts/verify-phase2-authority.mjs
+
       - name: Run simulation tests
         run: pnpm test:simulation
 

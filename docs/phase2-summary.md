@@ -1,0 +1,1 @@
+Phase 2 hardens competition state with authenticated RPCs, database locking, idempotent requests, RLS, state versions, authoritative events, and client-generated request IDs. Completion remains contingent on green automated gates.

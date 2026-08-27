@@ -1,0 +1,1 @@
+Implemented Phase 2 competition hardening against the Phase 1 foundation. The connected Supabase project has the authoritative multiplayer migration applied successfully. GitHub CI remains the final acceptance gate.

@@ -1,0 +1,1 @@
+Security review boundary for Phase 2: competition room lifecycle, membership, round submission, leaderboard writes, competition state reads, RLS, request idempotency, state versioning, and internal competition events. Existing non-competition SECURITY DEFINER functions are outside this phase unless they are directly reachable from competition mutations.

@@ -1,0 +1,1 @@
+Phase 2 hardens EnterpriseVerse multiplayer around a single authoritative Supabase mutation path. See the migration and security contract for exact rules.

@@ -1,0 +1,1 @@
+CI completion record: this branch must finish with green CI, EnterpriseVerse Quality Gate, and Production Gate. A phase completion claim must be based on the final commit, not an earlier green run.
