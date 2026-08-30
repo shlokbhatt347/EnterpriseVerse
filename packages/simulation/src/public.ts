@@ -13,4 +13,6 @@ export * from "./phase3";
 export * from "./phase3-advanced";
 export * from "./phase3-completion-contract";
 export * from "./phase3-validation";
+export * from "./phase4-projection";
+export * from "./phase4-intelligence";
 export * from "./engine";
