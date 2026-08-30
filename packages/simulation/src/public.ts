@@ -10,4 +10,6 @@ export * from "./phase5";
 export * from "./intelligence";
 export * from "./phase1";
 export * from "./phase3";
+export * from "./phase3-advanced";
+export * from "./phase3-completion-contract";
 export * from "./engine";
