@@ -10,7 +10,7 @@ describe('Phase 3 deep business world', () => {
     expect(w.competitors.length).toBeGreaterThan(1);
     expect(w.inventory.warehouseCapacity).toBeGreaterThan(0);
     expect(w.production.capacity).toBeGreaterThan(0);
-    expect(validatePhase3World(w)).toBe(true);
+    expect(validatePhase3World(w)).toEqual([]);
   });
 
   it('is deterministic for identical seed and decisions', () => {
@@ -22,7 +22,7 @@ describe('Phase 3 deep business world', () => {
     let w = createPhase3World(7);
     for (let i = 0; i < 200; i++) {
       w = advancePhase3World(w, { price: 1e99, borrowing: 1e99, repayment: 1e99, hiring: 1e99, layoffs: 1e99, marketing: 1e99, training: 1e99, capacityInvestment: 1e99, productionTarget: 1e99 });
-      expect(validatePhase3World(w)).toBe(true);
+      expect(validatePhase3World(w)).toEqual([]);
       expect(Number.isFinite(w.finance.cash)).toBe(true);
       expect(Number.isFinite(w.finance.valuation)).toBe(true);
     }
@@ -31,8 +31,7 @@ describe('Phase 3 deep business world', () => {
   it('preserves snapshot/replay semantics', () => {
     const initial = createPhase3World(9);
     const later = runPhase3Days(initial, 30)[30];
-    const restored = restorePhase3Snapshot(later);
-    expect(restored).toEqual(later);
+    expect(restorePhase3Snapshot(later)).toEqual(later);
   });
 
   it('produces explainable outcomes and telemetry', () => {
@@ -63,7 +62,7 @@ describe('Phase 3 deep business world', () => {
     let w = createPhase3World(99);
     for (let i = 0; i < 500; i++) {
       w = advancePhase3World(w, i % 5 === 0 ? { price: 95 + (i % 11), marketing: 5 } : {});
-      expect(validatePhase3World(w)).toBe(true);
+      expect(validatePhase3World(w)).toEqual([]);
     }
     expect(w.day).toBe(501);
   });
