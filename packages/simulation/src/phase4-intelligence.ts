@@ -1,32 +1,18 @@
 import type { SimulationChoice, SimulationState } from "@enterpriseverse/types";
-import { buildPhase4Attention, calculatePhase4Health, calculatePhase4MarketPulse, previewPhase4Decision } from "./phase4";
+import { buildPhase4Attention, calculatePhase4Health, previewPhase4Decision } from "./phase4";
 import { projectPhase4State, type Phase4Confidence, type Phase4Metric } from "./phase4-projection";
 
 export type Phase4Horizon = "today" | "week" | "month" | "long_term";
 export type Phase4Priority = "growth" | "profitability" | "stability" | "market_share" | "innovation" | "customer_value";
-
 export interface Phase4Signal { id: string; title: string; detail: string; confidence: Phase4Confidence; severity: "info" | "watch" | "critical"; source: string; }
-export interface Phase4IntelligenceReport {
-  market: { demand: Phase4Metric; confidence: Phase4Metric; price: Phase4Metric; competitivePressure: Phase4Metric; trend: string };
-  finance: { cash: Phase4Metric; debt: Phase4Metric; profit: Phase4Metric; runwayDays: Phase4Metric; valuation: Phase4Metric };
-  customers: { count: number; trust: Phase4Metric; satisfaction: Phase4Metric; acquisition: Phase4Metric; churn: Phase4Metric };
-  operations: { capacity: Phase4Metric; inventory: Phase4Metric; quality: Phase4Metric; stockoutDays: Phase4Metric; workforceHealth: Phase4Metric };
-  workforce: { morale: Phase4Metric; productivity: Phase4Metric; retention: Phase4Metric };
-  competitors: Array<{ name: string; strategy: string; share: Phase4Metric; aggression: Phase4Metric; threat: "low" | "medium" | "high" }>;
-  signals: Phase4Signal[];
-}
-
+export interface Phase4IntelligenceReport { market: { demand: Phase4Metric; confidence: Phase4Metric; price: Phase4Metric; competitivePressure: Phase4Metric; trend: string }; finance: { cash: Phase4Metric; debt: Phase4Metric; profit: Phase4Metric; runwayDays: Phase4Metric; valuation: Phase4Metric }; customers: { count: number; trust: Phase4Metric; satisfaction: Phase4Metric; acquisition: Phase4Metric; churn: Phase4Metric }; operations: { capacity: Phase4Metric; inventory: Phase4Metric; quality: Phase4Metric; stockoutDays: Phase4Metric; workforceHealth: Phase4Metric }; workforce: { morale: Phase4Metric; productivity: Phase4Metric; retention: Phase4Metric }; competitors: Array<{ name: string; strategy: string; share: Phase4Metric; aggression: Phase4Metric; threat: "low" | "medium" | "high" }>; signals: Phase4Signal[]; }
 export interface Phase4DecisionBrief { choiceId: string; label: string; horizon: Phase4Horizon; affectedSystems: string[]; preview: ReturnType<typeof previewPhase4Decision>; uncertainty: string; }
 export interface Phase4StrategicPlan { priority: Phase4Priority; horizon: Phase4Horizon; rationale: string; focus: string[]; }
 export interface Phase4TimelineItem { day: number; type: "decision" | "event" | "outcome"; title: string; detail: string; confidence: Phase4Confidence; }
 
 const clamp = (v: number, min = 0, max = 100) => Math.max(min, Math.min(max, Number.isFinite(v) ? v : min));
 const metric = (v: number, confidence: Phase4Confidence, source: string): Phase4Metric => ({ value: Math.round((Number.isFinite(v) ? v : 0) * 10) / 10, confidence, source });
-
-function threat(share: number, aggression: number): "low" | "medium" | "high" {
-  const score = share * 0.6 + aggression * 0.4;
-  return score >= 65 ? "high" : score >= 35 ? "medium" : "low";
-}
+function threat(share: number, aggression: number): "low" | "medium" | "high" { const score = share * 0.6 + aggression * 0.4; return score >= 65 ? "high" : score >= 35 ? "medium" : "low"; }
 
 export function buildPhase4IntelligenceReport(state: SimulationState): Phase4IntelligenceReport {
   const p = projectPhase4State(state);
@@ -56,12 +42,7 @@ export function buildPhase4DecisionBriefs(state: SimulationState, choices: Simul
     const preview = previewPhase4Decision(state, choice);
     const effectMagnitude = Math.abs(preview.projected.cashDelta) + Math.abs(preview.projected.revenueDelta) + Math.abs(preview.projected.reputationDelta) + Math.abs(preview.projected.marketShareDelta);
     const horizon: Phase4Horizon = effectMagnitude >= 5000 ? "month" : effectMagnitude >= 1000 ? "week" : "today";
-    const systems = [
-      preview.projected.cashDelta !== 0 ? "finance" : "",
-      preview.projected.revenueDelta !== 0 ? "market" : "",
-      preview.projected.reputationDelta !== 0 ? "customers / reputation" : "",
-      preview.projected.marketShareDelta !== 0 ? "competition" : "",
-    ].filter(Boolean);
+    const systems = [preview.projected.cashDelta !== 0 ? "finance" : "", preview.projected.revenueDelta !== 0 ? "market" : "", preview.projected.reputationDelta !== 0 ? "customers / reputation" : "", preview.projected.marketShareDelta !== 0 ? "competition" : ""].filter(Boolean);
     return { choiceId: choice.id, label: choice.label, horizon, affectedSystems: systems.length ? systems : ["business"], preview, uncertainty: "The preview uses current information; actual outcomes remain dependent on the next world transition." };
   });
 }
@@ -71,10 +52,10 @@ export function buildPhase4StrategicPlan(state: SimulationState, priority: Phase
   const plans: Record<Phase4Priority, Phase4StrategicPlan> = {
     growth: { priority, horizon: "month", rationale: "Use improving demand without allowing capacity or liquidity to become the bottleneck.", focus: ["capacity", "customer acquisition", "retention", "selective investment"] },
     profitability: { priority, horizon: "month", rationale: "Improve contribution and cash generation before adding fixed commitments.", focus: ["pricing", "unit economics", "operating efficiency", "cash"] },
-    stability: { priority, horizon: "week", rationale: `Risk is ${Math.round(p.finance.cash <= 0 ? 100 : calculatePhase4Health(state).risk)}/100; preserve optionality and remove the largest constraint first.`, focus: ["liquidity", "supply continuity", "workforce health", "customer trust"] },
+    stability: { priority, horizon: "week", rationale: `Risk is ${Math.round(calculatePhase4Health(state).risk)}/100; preserve optionality and remove the largest constraint first.`, focus: ["liquidity", "supply continuity", "workforce health", "customer trust"] },
     market_share: { priority, horizon: "month", rationale: "Defend or expand position where competitive pressure is manageable and demand supports it.", focus: ["pricing", "availability", "differentiation", "competitor monitoring"] },
     innovation: { priority, horizon: "long_term", rationale: "Build durable advantage while protecting the operating base that funds experimentation.", focus: ["quality", "R&D", "skills", "long-term capital"] },
-    customer_value: { priority, horizon: "week", rationale: "Increase trust and repeat behavior so acquisition compounds into retention rather than churn.", focus: ["service", "quality", "reliability", "feedback"] },
+    customer_value: { priority, horizon: "week", rationale: "Increase trust and repeat behavior so acquisition compounds into retention rather than churn.", focus: ["service", "quality", "reliability", "retention"] },
   };
   return plans[priority];
 }
@@ -86,5 +67,4 @@ export function buildPhase4Timeline(state: SimulationState): Phase4TimelineItem[
   for (const entry of state.log ?? []) items.push({ day: state.business.day, type: "decision", title: "Simulation activity", detail: entry, confidence: "known" });
   return items.sort((a, b) => b.day - a.day).slice(0, 30);
 }
-
 export function phase4MetricBand(value: number): "critical" | "watch" | "healthy" { const n = clamp(value); return n < 35 ? "critical" : n < 60 ? "watch" : "healthy"; }
