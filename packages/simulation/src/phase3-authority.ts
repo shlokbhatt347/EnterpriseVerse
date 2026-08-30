@@ -1,20 +1,26 @@
-import type { SimulationState, OperationsState, FinancialSnapshot } from '@enterpriseverse/types';
-import {
-  advanceDeepPhase3World,
-  createDeepPhase3World,
-  type DeepWorld,
-} from './phase3-advanced';
+import type { SimulationState, OperationsState, FinancialSnapshot, ConsequenceState, SimulationEvent } from '@enterpriseverse/types';
+import { advanceDeepPhase3World, createDeepPhase3World, type DeepWorld } from './phase3-advanced';
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 const finite = (value: number, fallback: number): number => Number.isFinite(value) ? value : fallback;
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, finite(value, min)));
+
+type Phase3AuthorityInput = SimulationState & { consequences?: ConsequenceState | SimulationState };
+
+function normalizeState(state: Phase3AuthorityInput): SimulationState {
+  const nested = state.consequences;
+  if (nested && 'business' in nested) {
+    const recovered = nested as SimulationState;
+    return { ...recovered, scenarios: state.scenarios ?? recovered.scenarios, replay: state.replay ?? recovered.replay, log: state.log ?? recovered.log };
+  }
+  return state as SimulationState;
+}
 
 function seedDeepWorld(state: SimulationState): DeepWorld {
   const industry = state.business.industry.toLowerCase();
   const supported = ['technology', 'retail', 'manufacturing', 'food', 'services', 'logistics'] as const;
   const selected = supported.find((item) => industry.includes(item)) ?? 'retail';
   const world = createDeepPhase3World(state.replay?.seed ?? state.meta?.seed ?? 1, selected);
-
   world.day = state.business.day;
   world.macro.day = state.business.day;
   world.finance.cash = Math.max(0, finite(state.business.cash, world.finance.cash));
@@ -31,17 +37,9 @@ function seedDeepWorld(state: SimulationState): DeepWorld {
   world.workforce.headcount = Math.max(1, Math.round(finite(state.operations?.employees ?? world.workforce.headcount, world.workforce.headcount)));
   world.workforce.productivity = clamp(world.workforce.productivity, 0, 100);
   world.information.customerSentiment = clamp(state.operations?.customerSatisfaction ?? world.information.customerSentiment, 0, 100);
-
   if (state.phase3?.world) {
     const persisted = clone(state.phase3.world) as Partial<DeepWorld>;
-    return {
-      ...world,
-      ...persisted,
-      deep: {
-        ...world.deep,
-        ...(persisted.deep ?? {}),
-      },
-    } as DeepWorld;
+    return { ...world, ...persisted, deep: { ...world.deep, ...(persisted.deep ?? {}) } } as DeepWorld;
   }
   return world;
 }
@@ -68,26 +66,13 @@ function toFinancialSnapshot(world: DeepWorld, previous?: FinancialSnapshot): Fi
   const grossProfit = world.finance.revenue - world.finance.operatingCost;
   const netProfit = grossProfit - world.finance.interest;
   const burnRate = netProfit < 0 ? Math.abs(netProfit) : 0;
-  return {
-    day: world.day,
-    revenue: world.finance.revenue,
-    expenses,
-    grossProfit,
-    netProfit,
-    cash,
-    debt: Math.max(0, world.finance.debt),
-    inventoryValue: Math.max(0, world.inventory.finishedGoods * world.production.unitCost),
-    workingCapital: cash + Math.max(0, world.inventory.finishedGoods * world.production.unitCost) - Math.max(0, world.finance.debt),
-    burnRate,
-    runwayDays: burnRate > 0 ? Math.floor(cash / burnRate) : (previous?.runwayDays ?? 9999),
-    valuation: Math.max(0, world.finance.valuation),
-  };
+  return { day: world.day, revenue: world.finance.revenue, expenses, grossProfit, netProfit, cash, debt: Math.max(0, world.finance.debt), inventoryValue: Math.max(0, world.inventory.finishedGoods * world.production.unitCost), workingCapital: cash + Math.max(0, world.inventory.finishedGoods * world.production.unitCost) - Math.max(0, world.finance.debt), burnRate, runwayDays: burnRate > 0 ? Math.floor(cash / burnRate) : (previous?.runwayDays ?? 9999), valuation: Math.max(0, world.finance.valuation) };
 }
 
-export function advanceAuthoritativePhase3(state: SimulationState): SimulationState {
+export function advanceAuthoritativePhase3(input: Phase3AuthorityInput): SimulationState {
+  const state = normalizeState(input);
   const current = seedDeepWorld(state);
   const next = advanceDeepPhase3World(current, decisionFromState(state));
-  const firstProduct = state.economy?.products[0];
   const operations: OperationsState = {
     ...(state.operations ?? { price: 100, quality: 70, marketingBudget: 0, productionCapacity: next.production.capacity, employees: next.workforce.headcount, supplierUnitCost: next.production.unitCost, brandAwareness: 50, customerSatisfaction: 70, debt: 0 }),
     price: next.markets[0].averagePrice,
@@ -97,56 +82,11 @@ export function advanceAuthoritativePhase3(state: SimulationState): SimulationSt
     supplierUnitCost: next.production.unitCost,
     customerSatisfaction: next.information.customerSentiment,
     debt: next.finance.debt,
-    marketingBudget: 0,
+    marketingBudget: state.operations?.marketingBudget ?? 0,
   };
-  const business = {
-    ...state.business,
-    day: next.day,
-    cash: Math.max(0, next.finance.cash),
-    revenue: Math.max(0, next.finance.revenue),
-    expenses: Math.max(0, next.finance.costs),
-    reputation: clamp(next.reputation.trust, 0, 100),
-    inventory: Math.max(0, next.inventory.finishedGoods),
-    marketShare: clamp(next.markets[0].marketShare * 100, 0, 100),
-    status: next.lifecycle === 'failed' ? 'failed' as const : state.business.status,
-  };
-  const market = state.market ? {
-    ...state.market,
-    demandIndex: next.markets[0].demandIndex,
-    marketPrice: next.markets[0].averagePrice,
-    competitorPrice: next.competitors[0]?.price ?? state.market.competitorPrice,
-    competitorQuality: next.competitors[0]?.quality ?? state.market.competitorQuality,
-    competitorMarketShare: next.competitors.reduce((sum, c) => sum + c.marketShare, 0) * 100,
-    trend: next.markets[0].trend,
-    confidence: next.information.confidence * 100,
-    priceElasticity: next.industries.find((i) => i.id === next.markets[0].industry)?.demandElasticity ?? state.market.priceElasticity,
-    competitivePressure: next.markets[0].demandIndex < 100 ? Math.min(100, state.market.competitivePressure + 1) : state.market.competitivePressure,
-  } : undefined;
-  const economy = state.economy ? {
-    ...state.economy,
-    products: state.economy.products.map((product, index) => index === 0 ? {
-      ...product,
-      sellingPrice: next.markets[0].averagePrice,
-      quality: next.reputation.productQuality,
-      inventory: next.inventory.finishedGoods,
-      productionCost: next.production.unitCost,
-      demandScore: next.markets[0].demandIndex,
-    } : product),
-  } : state.economy;
-  return {
-    ...state,
-    business,
-    operations,
-    market,
-    economy,
-    financials: toFinancialSnapshot(next, state.financials),
-    phase3: { version: 1, seed: next.seed, world: clone(next) as unknown as Record<string, unknown> },
-    events: next.events.map((event) => ({
-      id: event.id,
-      title: event.kind.replace(/_/g, ' '),
-      message: `${event.kind} severity ${(event.severity * 100).toFixed(0)}% for ${event.duration} days.`,
-      choices: [],
-    })),
-    log: [...state.log, `Day ${next.day}: Phase 3 world transition — demand ${next.markets[0].demandIndex.toFixed(1)}, output ${next.production.output.toFixed(1)}, cash ₹${next.finance.cash.toFixed(0)}.`, ...next.telemetry.slice(-1).map((t) => `Causal trace: ${t.causes.join(' → ')} → ${t.effects.join(', ')}.`)],
-  };
+  const business = { ...state.business, day: next.day, cash: Math.max(0, next.finance.cash), revenue: Math.max(0, next.finance.revenue), expenses: Math.max(0, next.finance.costs), reputation: clamp(next.reputation.trust, 0, 100), inventory: Math.max(0, next.inventory.finishedGoods), marketShare: clamp(next.markets[0].marketShare * 100, 0, 100), status: next.lifecycle === 'failed' ? 'failed' as const : state.business.status };
+  const market = state.market ? { ...state.market, demandIndex: next.markets[0].demandIndex, marketPrice: next.markets[0].averagePrice, competitorPrice: next.competitors[0]?.price ?? state.market.competitorPrice, competitorQuality: next.competitors[0]?.quality ?? state.market.competitorQuality, competitorMarketShare: next.competitors.reduce((sum, c) => sum + c.marketShare, 0) * 100, trend: next.markets[0].trend, confidence: next.information.confidence * 100, priceElasticity: next.industries.find((i) => i.id === next.markets[0].industry)?.demandElasticity ?? state.market.priceElasticity, competitivePressure: next.markets[0].demandIndex < 100 ? Math.min(100, state.market.competitivePressure + 1) : state.market.competitivePressure } : undefined;
+  const economy = state.economy ? { ...state.economy, products: state.economy.products.map((product, index) => index === 0 ? { ...product, sellingPrice: next.markets[0].averagePrice, quality: next.reputation.productQuality, inventory: next.inventory.finishedGoods, productionCost: next.production.unitCost, demandScore: next.markets[0].demandIndex } : product) } : state.economy;
+  const events: SimulationEvent[] = next.events.map((event) => ({ id: event.id, day: event.day, title: event.kind.replace(/_/g, ' '), message: `${event.kind} severity ${(event.severity * 100).toFixed(0)}% for ${event.duration} days.`, choices: [] }));
+  return { ...state, business, operations, market, economy, financials: toFinancialSnapshot(next, state.financials), phase3: { version: 1, seed: next.seed, world: clone(next) as unknown as Record<string, unknown> }, events, log: [...state.log, `Day ${next.day}: Phase 3 world transition — demand ${next.markets[0].demandIndex.toFixed(1)}, output ${next.production.output.toFixed(1)}, cash ₹${next.finance.cash.toFixed(0)}.`, ...next.telemetry.slice(-1).map((t) => `Causal trace: ${t.causes.join(' → ')} → ${t.effects.join(', ')}.`)] };
 }
