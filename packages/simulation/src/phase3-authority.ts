@@ -5,7 +5,7 @@ const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 const finite = (value: number, fallback: number): number => Number.isFinite(value) ? value : fallback;
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, finite(value, min)));
 
-type Phase3AuthorityInput = SimulationState & { consequences?: ConsequenceState | SimulationState };
+type Phase3AuthorityInput = Omit<SimulationState, 'consequences'> & { consequences?: ConsequenceState | SimulationState };
 
 function normalizeState(state: Phase3AuthorityInput): SimulationState {
   const nested = state.consequences;
@@ -62,9 +62,9 @@ function decisionFromState(state: SimulationState): Parameters<typeof advanceDee
 
 function toFinancialSnapshot(world: DeepWorld, previous?: FinancialSnapshot): FinancialSnapshot {
   const cash = Math.max(0, world.finance.cash);
-  const expenses = Math.max(0, world.finance.operatingCost + world.finance.capex + world.finance.interest);
-  const grossProfit = world.finance.revenue - world.finance.operatingCost;
-  const netProfit = grossProfit - world.finance.interest;
+  const expenses = Math.max(0, world.finance.costs + world.finance.capex + world.finance.interestExpense);
+  const grossProfit = world.finance.grossProfit;
+  const netProfit = world.finance.netCashFlow;
   const burnRate = netProfit < 0 ? Math.abs(netProfit) : 0;
   return { day: world.day, revenue: world.finance.revenue, expenses, grossProfit, netProfit, cash, debt: Math.max(0, world.finance.debt), inventoryValue: Math.max(0, world.inventory.finishedGoods * world.production.unitCost), workingCapital: cash + Math.max(0, world.inventory.finishedGoods * world.production.unitCost) - Math.max(0, world.finance.debt), burnRate, runwayDays: burnRate > 0 ? Math.floor(cash / burnRate) : (previous?.runwayDays ?? 9999), valuation: Math.max(0, world.finance.valuation) };
 }
