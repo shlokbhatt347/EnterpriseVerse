@@ -24,3 +24,7 @@ Students choose a business structure, create a company, serve customers, negotia
 4. The market evolves continuously.
 5. Multiplayer businesses share an economy.
 6. Feedback improves judgment instead of replacing it.
+
+## Simulation validation
+
+Phase 3 long-horizon, deterministic world behavior is covered by the simulation quality gate.
