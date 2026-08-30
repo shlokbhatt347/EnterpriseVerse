@@ -28,3 +28,5 @@ Students choose a business structure, create a company, serve customers, negotia
 ## Simulation validation
 
 Phase 3 long-horizon, deterministic world behavior is covered by the simulation quality gate.
+
+Final Phase 3 branch validation is required before merge.
